@@ -20,7 +20,9 @@ import jnibwapi.types.UpgradeType;
 import jnibwapi.types.UpgradeType.UpgradeTypes;
 import jnibwapi.util.BWColor;
 import bot.BuildOrder;
-
+import jnibwapi.ChokePoint;
+import java.util.Collections;
+import  java.util.LinkedList;
 import javax.lang.model.type.UnionType;
 
 
@@ -92,6 +94,7 @@ public class protossClient implements BWAPIEventListener {
 	private List<Integer> buildQuadrants;
 
 	private BuildOrder buildOrder;
+	private CentralCommand centralCommand;
 
 	private UnitType unitTypeUnderConstruction;
 
@@ -400,7 +403,7 @@ public class protossClient implements BWAPIEventListener {
 		}
 		return null;
 	}
-	
+
 	private List<ChokePoint> getBaseChokePoints(){
         List<ChokePoint> chokePoints = bwapi.getMap().getChokePoints();
         List<ChokePoint> baseChokes = new LinkedList<>();
