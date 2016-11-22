@@ -15,6 +15,7 @@ public class Squad {
         n_members = 0;
     }
 
+
     /**
      * Adds a member to the squad if there is room.
      * @param unit
@@ -169,4 +170,10 @@ public class Squad {
     public int membersQuantity(){
         return n_members;
     }
+
+
+    public Unit[] returnMemberArray(){
+        return members;
+    }
+
 }
