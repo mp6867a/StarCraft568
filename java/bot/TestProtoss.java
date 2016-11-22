@@ -4,7 +4,7 @@ import jnibwapi.BWAPIEventListener;
 import jnibwapi.Position;
 
 /**
- * Created by James Raynor on 11/22/16.
+ * Created by rehaf on 11/22/16.
  */
 public class TestProtoss implements BWAPIEventListener {
 
