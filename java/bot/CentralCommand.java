@@ -11,13 +11,15 @@ import jnibwapi.Unit;
 import jnibwapi.types.UnitType;
 import jnibwapi.BaseLocation;
 import jnibwapi.JNIBWAPI;
+import jnibwapi.types.UnitType;
 
 public class CentralCommand {
             JNIBWAPI bwapi;
 
     public List<Squad> squads;
     public List<Unit> units;
-
+    public List<Unit> scarbList;
+    public int ScarbCount = 0;
 
     public HashSet<Position> enemyBuildsingsPos = new HashSet();
     public List<Unit> EnemyList ;
@@ -26,6 +28,7 @@ public class CentralCommand {
         squads = new ArrayList<Squad>();
         units = new ArrayList<Unit>();
         EnemyList = new ArrayList<Unit>() ;
+        scarbList = new ArrayList<Unit>() ;
     }
 
     /**
@@ -219,8 +222,6 @@ return null;
         // loop through enemy list  in list
         for (Unit unit : EnemyList ){
 
-
-
                 boolean enemyIsDeadk = false;
 
                 for ( Unit enemyUni: bwapi.getEnemyUnits()){
@@ -238,14 +239,75 @@ return null;
                     EnemyList.remove(unit);
                     break;
                 }
+        }
+    }
 
 
 
+    //call this every frame so it will keep on bulding
+    public void DeployOneScarbs() {
+        int count = 0;
+        for (Unit unit : units) { // if units is the list that stores our units? // or acsess the squad that has a reaver
+            //is that a thing ? so far we only have one reaver in build order
+
+            if (unit.getType() == UnitType.UnitTypes.Protoss_Reaver) {
+                //or supplay cap - not sure where you would liek this or if we have a cap somehwe
+                //if the unit is not doing anything ( not currenlty buldings/atatcking ) issue a build order
+                if (bwapi.getSelf().getMinerals() >= 15 && unit.isIdle()) {
+
+                    // not sure if it is build addon , its the once I  foudnd that can take a type as a paramted
+                    //morph is for changing it
+                    //attack is for attacking - need one to issue build of scarbs
+                    unit.buildAddon(UnitType.UnitTypes.Protoss_Scarab);
+
+                    // need to add built scarb to the list - or does it do this automaticlly
+                   // scarbList.add()
+
+                }
+                // can add other unit checks here and have them build or issue commands
+
+            }
 
 
         }
     }
-    }
+
+        public void SendScarbs(Unit enmey){
+            ScarbCount = scarbList.size(); // set the couunter to the size of the scarb list
+
+            for (Unit unit : scarbList){
+
+                if (ScarbCount!= 0){ // if we have scarbs
+
+                    unit.attack(enmey.getPosition(), false);
+                    scarbList.remove(unit); // remove the used scarb from the list after it was deployed
+                    break;
+                }
+            }
+        }
+
+        // send in units follows this strcutur
+    // UnitType.UnitTypes.Zerg_Zergling or
+
+
+        public void AttackSpecficEnemy(UnitType Enemytype){
+            for (Unit unit : bwapi.getMyUnits()) {
+                if (unit.getType() == Enemytype && unit.isIdle()){
+                    for (Unit enemy :EnemyList ) {//bwapi.getEnemyUnits()
+                        if(enemy.getType() == Enemytype){
+                        unit.attack(enemy.getPosition(), false);
+                        break;
+                    }}
+                }
+            }
+
+        }
+
+
+}
+
+
+
 
 
 
