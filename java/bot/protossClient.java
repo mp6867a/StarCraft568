@@ -1,6 +1,7 @@
 package bot;
 
 import java.util.HashSet;
+import java.util.ArrayList;
 
 import jnibwapi.BWAPIEventListener;
 import jnibwapi.JNIBWAPI;
@@ -61,6 +62,10 @@ public class protossClient implements BWAPIEventListener {
 	private boolean pylonUp=false;
 	//is the first gateway built
 	private boolean gatewayUp=false;
+
+	private Unit[] zealotsAttacking = new Unit[];
+
+	private boolean zealotAttackUnderway = false;
 	/**
 	 * Create a Java AI.
 	 */
@@ -267,14 +272,14 @@ public class protossClient implements BWAPIEventListener {
 					if (builder.getType() == UnitTypes.Protoss_Probe) {
 						builder.build(buildArea, UnitTypes.Protoss_Pylon);
 						supplyCap = bwapi.getSelf().getSupplyTotal();
-					
-					}	
-				
+
+					}
+
 					for (Unit minerals : bwapi.getNeutralUnits()) {
 						if (minerals.getType().isMineralField()
 								&& !claimedMinerals.contains(minerals)) {
 							double distance = poolDrone.getDistance(minerals);
-							
+
 							if (distance < 300) {
 								builder.rightClick(minerals, false);
 								claimedMinerals.add(minerals);
@@ -297,6 +302,7 @@ public class protossClient implements BWAPIEventListener {
 		// spawn zealots
 		else if (bwapi.getSelf().getMinerals() >= 100) {
 			for (Unit unit : bwapi.getMyUnits()) {
+				//Should we should store which units are protoss gateways so we don't have to do a loop like this
 				if (unit.getType() == UnitTypes.Protoss_Gateway && unit.isCompleted()) {
 					unit.train(UnitTypes.Protoss_Zealot);
 						}
@@ -304,22 +310,29 @@ public class protossClient implements BWAPIEventListener {
 				}
 			
 		
-		//mass 8 zlots before attacking
-		garrisonZLots = 0;	
-		for (Unit unit : bwapi.getMyUnits()) {
-			if (unit.getType() == UnitTypes.Protoss_Zealot && unit.isIdle()){
-				garrisonZLots += 1;
-					}
-				}
-		if (garrisonZLots >= 8){
-		// attack move toward an enemy
-			for (Unit unit : bwapi.getMyUnits()) {
-				if (unit.getType() == UnitTypes.Protoss_Zealot && unit.isIdle()) {
-					for (Unit enemy : bwapi.getEnemyUnits()) {
-						unit.attack(enemy.getPosition(), false);
-						break;
-					}
-				}
+		//mass at least 8 zealots before attacking
+		// '8 zealots' should be a configurable value based on environment
+		//nitpicking on names here, we shouldn't use 'garrison' to describe units being massed for attack
+		//also, this is an all-out attack; I'm changing this to a configurable amount to attack with
+		int minZealotsForAttack = 8;
+		int lossTolerance = 0.5;
+		if (!zealotAttackUnderway) {
+			zealotsAttacking = getZealots();
+			if (zealotsAttacking.length() >= minZealotsForAttack) {
+				//Mass the units
+				//Might consider leaving some Zealots behind
+				//Introduce a trimming method?
+				massZealots(zealotsAttacking);
+				// attack move toward an enemy
+				zealotAttackUnderway = zealotAttack(zealotsAttacking);
+			}
+		}
+		else {
+			if(countZealots() < lossTolerance * zealotsAttacking.length()) {
+				//some form of retreat if we are taking on large losses
+			}
+			else {
+				zealotAttackUnderway = zealotAttack(zealotsAttacking);
 			}
 		}
 	}
@@ -359,4 +372,78 @@ public class protossClient implements BWAPIEventListener {
 	public void unitComplete(int unitID) {}
 	@Override
 	public void playerDropped(int playerID) {}
+
+	private integer countZealots()
+	{
+		int zealots = 0;
+		for (Unit unit : idleUnits()) {
+			if (unit.getType() == UnitTypes.Protoss_Zealot){
+				zealots += 1;
+			}
+		}
+	}
+	private Unit[] getZealots() {
+		ArrayList zealots = new ArrayList();
+		for (Unit unit : idleUnits()) {
+			if (unit.getType() == UnitTypes.Protoss_Zealot){
+				zealots.add(unit);
+			}
+		}
+		return zealots.toArray();
+	}
+	private Unit[] idleUnits()
+	{
+		ArrayList idleUnitsList = new ArrayList();
+		for (Unit unit : bwapi.getMyUnits()) {
+			if (unit.isIdle()) {
+				idleUnitsList.add(unit);
+			}
+		}
+		return idleUnitsList.toArray();
+		}
+	}
+
+	private void massZealots(Unit[] zealotsArray) {
+		//get the first zealots position
+		Position basePosition = zealotsArray[0].getPosition();
+		for (Unit zealot : zealotsArray) {
+			//move to base location
+		}
+	}
+
+	/**
+	have our zealots attack the FIRST unit in the stack.
+	Returns if the zealots are actually attacking an enemy.
+	Maybe we should calculate the nearest enemy to attack?
+	*/
+	private boolean zealotAttack(Unit[] zealotArray) {
+		boolean attackMoveMade = false;
+		for (Unit unit : zealotArray) {
+			if (unit.getType() == UnitTypes.Protoss_Zealot) {
+				//this is just the first enemy in the list.
+				//Also, how do we prevent their mission from changing.
+				for (Unit enemy : bwapi.getEnemyUnits()) {
+					unit.attack(enemy.getPosition(), false);
+					attackMoveMade = true;
+					break;
+				}
+			}
+		}
+		return attackMoveMade;
+	}
+
+	private boolean destroyEnemyBuildings() {
+		boolean attackMoveMade = false;
+		for (Unit unit : idleUnits()) {
+			if (unit.getType() == UnitTypes.Protoss_Zealot) {
+				//some logic to check if 'unit' is a building
+				for (Unit enemy : bwapi.getEnemies()) {
+					unit.attack(enemy.getPosition(), false);
+					attackMoveMade = true;
+					break;
+				}
+			}
+		}
+		return attackMoveMade;
+	}
 }
