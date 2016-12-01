@@ -63,7 +63,7 @@ public class protossClient implements BWAPIEventListener {
 	private boolean pylonUp=false;
 	//is the first gateway built
 	private boolean gatewayUp=false;
-
+	private Unit[] allZealots = new Unit[0];
 	private Unit[] zealotsAttacking = new Unit[0];
 
 	private boolean zealotAttackUnderway = false;
@@ -313,23 +313,30 @@ public class protossClient implements BWAPIEventListener {
 		//nitpicking on names here, we shouldn't use 'garrison' to describe units being massed for attack
 		//also, this is an all-out attack; I'm changing this to a configurable amount to attack with
 		int minZealotsForAttack = 8;
+		double reserveRatio = 0.2;
 		double lossTolerance = 0.5;
-		if (!zealotAttackUnderway) {
-			zealotsAttacking = getZealots();
+		double minAdvantage = 0.1;
+		double strengthDisadvantage = -0.15;
+		double strengthBalance = strengthBalance();
+		if (!zealotAttackUnderway && strengthBalance >= minAdvantage) {
+			//this logic leaves some Zealots in reserve
+			allZealots = getZealots();
+			zealotsAttacking = new Unit[(int)(allZealots.length * (1 - reserveRatio))];
+			System.arraycopy(allZealots, 0, zealotsAttacking, 0, (int) (allZealots.length * (1 - reserveRatio)));
 			if (zealotsAttacking.length >= minZealotsForAttack) {
 				//Mass the units
-				//Might consider leaving some Zealots behind
-				//Introduce a trimming method?
 				massZealots(zealotsAttacking);
+				//I'm guessing that we need to wait until they are actually massed together...
 				// attack move toward an enemy
 				zealotAttackUnderway = zealotAttack(zealotsAttacking);
 			}
 		}
 		else {
-			if(countZealots() < lossTolerance * zealotsAttacking.length) {
-				//some form of retreat if we are taking on large losses
+			if(countZealots() < lossTolerance * zealotsAttacking.length || strengthBalance <= strengthDisadvantage) {
+				//some form of retreat if we are taking on large losses or at a disadvantage
 			}
-			else {
+			else if (zealotAttackUnderway){
+				//keep attacking if the attack isn't going horribly
 				zealotAttackUnderway = zealotAttack(zealotsAttacking);
 			}
 		}
