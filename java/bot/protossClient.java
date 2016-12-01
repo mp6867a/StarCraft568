@@ -2,6 +2,7 @@ package bot;
 
 import java.util.HashSet;
 import java.util.ArrayList;
+import java.util.List;
 
 import jnibwapi.BWAPIEventListener;
 import jnibwapi.JNIBWAPI;
@@ -63,7 +64,7 @@ public class protossClient implements BWAPIEventListener {
 	//is the first gateway built
 	private boolean gatewayUp=false;
 
-	private Unit[] zealotsAttacking = new Unit[];
+	private Unit[] zealotsAttacking = new Unit[0];
 
 	private boolean zealotAttackUnderway = false;
 	/**
@@ -315,10 +316,10 @@ public class protossClient implements BWAPIEventListener {
 		//nitpicking on names here, we shouldn't use 'garrison' to describe units being massed for attack
 		//also, this is an all-out attack; I'm changing this to a configurable amount to attack with
 		int minZealotsForAttack = 8;
-		int lossTolerance = 0.5;
+		double lossTolerance = 0.5;
 		if (!zealotAttackUnderway) {
 			zealotsAttacking = getZealots();
-			if (zealotsAttacking.length() >= minZealotsForAttack) {
+			if (zealotsAttacking.length >= minZealotsForAttack) {
 				//Mass the units
 				//Might consider leaving some Zealots behind
 				//Introduce a trimming method?
@@ -328,7 +329,7 @@ public class protossClient implements BWAPIEventListener {
 			}
 		}
 		else {
-			if(countZealots() < lossTolerance * zealotsAttacking.length()) {
+			if(countZealots() < lossTolerance * zealotsAttacking.length) {
 				//some form of retreat if we are taking on large losses
 			}
 			else {
@@ -373,7 +374,7 @@ public class protossClient implements BWAPIEventListener {
 	@Override
 	public void playerDropped(int playerID) {}
 
-	private integer countZealots()
+	private int countZealots()
 	{
 		int zealots = 0;
 		for (Unit unit : idleUnits()) {
@@ -381,27 +382,27 @@ public class protossClient implements BWAPIEventListener {
 				zealots += 1;
 			}
 		}
+		return zealots;
 	}
 	private Unit[] getZealots() {
-		ArrayList zealots = new ArrayList();
+        ArrayList<Unit> zealots = new ArrayList<Unit>();
 		for (Unit unit : idleUnits()) {
 			if (unit.getType() == UnitTypes.Protoss_Zealot){
 				zealots.add(unit);
 			}
 		}
-		return zealots.toArray();
+		return zealots.toArray(new Unit[0]);
 	}
 	private Unit[] idleUnits()
 	{
-		ArrayList idleUnitsList = new ArrayList();
+		ArrayList<Unit> idleUnitsList = new ArrayList<Unit>();
 		for (Unit unit : bwapi.getMyUnits()) {
 			if (unit.isIdle()) {
 				idleUnitsList.add(unit);
 			}
 		}
-		return idleUnitsList.toArray();
-		}
-	}
+		return idleUnitsList.toArray(new Unit[0]);
+    }
 
 	private void massZealots(Unit[] zealotsArray) {
 		//get the first zealots position
@@ -437,7 +438,7 @@ public class protossClient implements BWAPIEventListener {
 		for (Unit unit : idleUnits()) {
 			if (unit.getType() == UnitTypes.Protoss_Zealot) {
 				//some logic to check if 'unit' is a building
-				for (Unit enemy : bwapi.getEnemies()) {
+				for (Unit enemy : bwapi.getEnemyUnits()) {
 					unit.attack(enemy.getPosition(), false);
 					attackMoveMade = true;
 					break;
