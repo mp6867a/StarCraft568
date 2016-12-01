@@ -173,10 +173,7 @@ public class protossClient implements BWAPIEventListener {
 				}
 			}
 		}
-		
-
-			
-		
+		//This seems like a pretty weak search for a suitable build location. Could we do an iteration of random values?
 		buildArea= new Position(bwapi.getSelf().getStartLocation().getPX()+200,bwapi.getSelf().getStartLocation().getPY());
 		if(bwapi.canBuildHere(buildArea, UnitTypes.Protoss_Pylon, true) == false){
 				buildArea= new Position(bwapi.getSelf().getStartLocation().getPX()-200,bwapi.getSelf().getStartLocation().getPY());
@@ -291,16 +288,16 @@ public class protossClient implements BWAPIEventListener {
 				}
 			}
 		}
-/*		// spawn probes
-		else if (bwapi.getSelf().getMinerals() >= 50 && numProbes <= 12) {
+		// spawn probes
+		else if (bwapi.getSelf().getMinerals() >= 50 && (numProbes <= 4 || (numProbes / countZealots()) < (1 /3.0))) {
 			for (Unit unit : bwapi.getMyUnits()) {
 				if (unit.getType() == UnitTypes.Protoss_Nexus && unit.isCompleted()) {
 					unit.train(UnitTypes.Protoss_Probe);
 						}
 					}
-				}*/
+				}
 					
-		// spawn zealots
+		// spawn zealots if we didn't spawn anything else
 		else if (bwapi.getSelf().getMinerals() >= 100) {
 			for (Unit unit : bwapi.getMyUnits()) {
 				//Should we should store which units are protoss gateways so we don't have to do a loop like this
@@ -447,4 +444,77 @@ public class protossClient implements BWAPIEventListener {
 		}
 		return attackMoveMade;
 	}
+
+	private double getEnemyHealth(){
+		double strength = 0.0;
+		//included for future use
+		double initialStrength = 0.0;
+		for (Unit enemyUnit: bwapi.getEnemyUnits()) {
+			strength += enemyUnit.getHitPoints();
+			initialStrength += enemyUnit.getInitialHitPoints();
+		}
+		return strength;
+	}
+
+	private double getSelfHealth(){
+		double strength = 0.0;
+		double initialStrength = 0.0;
+		for (Unit enemyUnit: bwapi.getMyUnits()) {
+			strength += enemyUnit.getHitPoints();
+			initialStrength += enemyUnit.getInitialHitPoints();
+		}
+		return strength;
+	}
+
+	private double getEnemyAttackStrength(){
+		double strength = 0.0;
+		double score = 0.0;
+		for (Unit enemyUnit: bwapi.getEnemyUnits()){
+			strength += scoreUnitAttackThreat(enemyUnit);
+		}
+		return strength;
+	}
+
+	private double getSelfAttackStrength(){
+		double strength = 0.0;
+		double score = 0.0;
+		for (Unit myUnit: bwapi.getMyUnits()){
+			strength += scoreUnitAttackThreat(myUnit);
+		}
+		return strength;
+	}
+	private double scoreUnitAttackThreat(Unit unit)
+	{
+		UnitType thisUnitType = unit.getType();
+		//takes the damage the unit can do and adds in some modification based on armor and speed.
+		double speedBuffer = 10.0;
+		double armorBuffer = 1.5;
+		double baseAttack = thisUnitType.getGroundWeapon().getDamageAmount();
+		double armorMod = (thisUnitType.getArmor() + armorBuffer) / armorBuffer;
+		double speedMod = ((thisUnitType.getTopSpeed() + speedBuffer) / speedBuffer);
+		double allMods = speedMod * armorMod;
+		return baseAttack * allMods;
+	}
+
+	private double strengthBalance()
+	{
+		double myStrength = getSelfAttackStrength();
+		double myHealth = getSelfHealth();
+		double enemyStrength = getEnemyAttackStrength();
+		double enemyHealth = getEnemyHealth();
+		double myScore = (myStrength * myHealth);
+		double enemyScore = (enemyStrength * enemyHealth);
+		//negative scores favor the enemy, positive favors Self
+		if (enemyScore > myScore){
+			//subtract by 1 to set a tie at 0.0
+			//multiply by -1 to show enemy advantage
+			return -1 * (enemyScore / myScore - 1);
+		}
+		else {
+			return (myScore / enemyScore - 1);
+		}
+
+
+	}
+
 }
