@@ -139,10 +139,8 @@ public class protossClient implements BWAPIEventListener {
 			}
 		}
 		bwapi.drawText(new Position(0, 20), msg, true);
-		
 		// draw the terrain information
 		bwapi.getMap().drawTerrainData(bwapi);
-		//bwapi.sendText("there is no cow level");
 		// spawn a drone
 		for (Unit unit : bwapi.getMyUnits()) {
 			// Note you can use referential equality
@@ -153,7 +151,7 @@ public class protossClient implements BWAPIEventListener {
 				}
 			}
 		}
-		
+		/*
 		// collect minerals
 		for (Unit unit : bwapi.getMyUnits()) {
 			if (unit.getType() == UnitTypes.Protoss_Probe) {
@@ -163,7 +161,7 @@ public class protossClient implements BWAPIEventListener {
 						if (minerals.getType().isMineralField()
 								&& !claimedMinerals.contains(minerals)) {
 							double distance = unit.getDistance(minerals);
-							
+
 							if (distance < 300) {
 								unit.rightClick(minerals, false);
 								claimedMinerals.add(minerals);
@@ -173,18 +171,9 @@ public class protossClient implements BWAPIEventListener {
 					}
 				}
 			}
-		}
+		}*/
 		//This seems like a pretty weak search for a suitable build location. Could we do an iteration of random values?
-		buildArea= new Position(bwapi.getSelf().getStartLocation().getPX()+200,bwapi.getSelf().getStartLocation().getPY());
-		if(bwapi.canBuildHere(buildArea, UnitTypes.Protoss_Pylon, true) == false){
-				buildArea= new Position(bwapi.getSelf().getStartLocation().getPX()-200,bwapi.getSelf().getStartLocation().getPY());
-				if(bwapi.canBuildHere(buildArea, UnitTypes.Protoss_Pylon, true) == false){
-					buildArea= new Position(bwapi.getSelf().getStartLocation().getPX(),bwapi.getSelf().getStartLocation().getPY()+200);
-						if(bwapi.canBuildHere(buildArea, UnitTypes.Protoss_Pylon, true) == false){
-							buildArea= new Position(bwapi.getSelf().getStartLocation().getPX(),bwapi.getSelf().getStartLocation().getPY()-200);
-						}
-				}	
-		}
+		buildArea = getBuildPosition(200);
 		// build a pylon
 		if (bwapi.getSelf().getMinerals() >= 100 && poolDrone == null && pylonUp == false) {
 			for (Unit unit : bwapi.getMyUnits()) {
@@ -192,106 +181,110 @@ public class protossClient implements BWAPIEventListener {
 					poolDrone = unit;
 					unit.build(buildArea, UnitTypes.Protoss_Pylon);
 					pylonUp=true;
-					while(bwapi.canBuildHere(pyPos, UnitTypes.Protoss_Pylon, true))
-					{
-						System.out.println("while triggered");
-					}
-					System.out.println("while not  triggered");
-					for (Unit minerals : bwapi.getNeutralUnits()) {
-						if (minerals.getType().isMineralField()
-								&& !claimedMinerals.contains(minerals)) {
-							double distance = poolDrone.getDistance(minerals);
-							
-							if (distance < 300) {
-								poolDrone.rightClick(minerals, false);
-								claimedMinerals.add(minerals);
-								poolDrone=null;
-								break;
-								}
-							}
-						}
+					break;
+					//while(bwapi.canBuildHere(pyPos, UnitTypes.Protoss_Pylon, true))
+					//{
+					//	System.out.println("while triggered");
+					//}
+					//System.out.println("while not  triggered");
+					//for (Unit minerals : bwapi.getNeutralUnits()) {
+					//	if (minerals.getType().isMineralField()
+					//			&& !claimedMinerals.contains(minerals)) {
+					//		double distance = poolDrone.getDistance(minerals);
+					//
+					//		if (distance < 300) {
+					//			poolDrone.rightClick(minerals, false);
+					//			claimedMinerals.add(minerals);
+					//			poolDrone=null;
+					//			break;
+					//			}
+					//		}
+					//	}
 					}
 				}
 			}
 		
 		// build the gateway next to the pylon
-		
-		for (Unit unit : bwapi.getMyUnits()) {
-			if (unit.getType() == UnitTypes.Protoss_Pylon) {
-				pyPos = new Position(unit.getPosition().getPX(),unit.getPosition().getPY());
-				bwapi.drawCircle(unit.getPosition(),25,BWColor.Orange, false, false);
-				break;
-			}
-		}
-			gatePos = new Position(pyPos.getPX()+100,pyPos.getPY());
-				if(bwapi.canBuildHere(gatePos, UnitTypes.Protoss_Gateway, true) == false){
-					gatePos = new Position(pyPos.getPX()-100,pyPos.getPY());
-					if(bwapi.canBuildHere(gatePos, UnitTypes.Protoss_Gateway, true) == false){								
-						gatePos = new Position(pyPos.getPX(),pyPos.getPY()+100);
-						if(bwapi.canBuildHere(gatePos, UnitTypes.Protoss_Gateway, true) == false){								
-							gatePos = new Position(pyPos.getPX(),pyPos.getPY()-100);
-						}
-					}
-				}
-		
-		// build a gateway
-		if (bwapi.getSelf().getMinerals() >= 150 && gatewayUp == false) {
-			bwapi.drawCircle(gatePos,50,BWColor.Orange, false, false);
+		if(bwapi.getSelf().getMinerals() >= UnitTypes.Protoss_Gateway.getBuildScore() && gatewayUp == false){
 			for (Unit unit : bwapi.getMyUnits()) {
-				if (unit.getType() == UnitTypes.Protoss_Probe) {
-					poolDrone = unit;
+				if (unit.getType() == UnitTypes.Protoss_Pylon && unit.isCompleted()) {
+					pyPos = new Position(unit.getPosition().getPX(), unit.getPosition().getPY());
+					bwapi.drawCircle(unit.getPosition(), 25, BWColor.Orange, false, false);
 
-					unit.build(gatePos, UnitTypes.Protoss_Gateway);
-					gatewayUp=true;
-					for (Unit minerals : bwapi.getNeutralUnits()) {
-						if (minerals.getType().isMineralField()
-								&& !claimedMinerals.contains(minerals)) {
-							double distance = poolDrone.getDistance(minerals);
-							
-							if (distance < 300) {
-								poolDrone.rightClick(minerals, false);
-								claimedMinerals.add(minerals);
-								poolDrone=null;
-								break;
-								}
+					gatePos = new Position(pyPos.getPX() + 100, pyPos.getPY());
+					if (bwapi.canBuildHere(gatePos, UnitTypes.Protoss_Gateway, true) == false) {
+						gatePos = new Position(pyPos.getPX() - 100, pyPos.getPY());
+						if (bwapi.canBuildHere(gatePos, UnitTypes.Protoss_Gateway, true) == false) {
+							gatePos = new Position(pyPos.getPX(), pyPos.getPY() + 100);
+							if (bwapi.canBuildHere(gatePos, UnitTypes.Protoss_Gateway, true) == false) {
+								gatePos = new Position(pyPos.getPX(), pyPos.getPY() - 100);
 							}
 						}
 					}
-				}
-			}
 
+					// build a gateway
+					bwapi.drawCircle(gatePos, 50, BWColor.Orange, false, false);
+					for (Unit probe : bwapi.getMyUnits()) {
+						if (probe.getType() == UnitTypes.Protoss_Probe) {
+							poolDrone = probe;
+
+							probe.build(gatePos, UnitTypes.Protoss_Gateway);
+							gatewayUp = true;
+							break;
+							/*for (Unit minerals : bwapi.getNeutralUnits()) {
+								if (minerals.getType().isMineralField()
+										&& !claimedMinerals.contains(minerals)) {
+									double distance = poolDrone.getDistance(minerals);
+
+									if (distance < 300) {
+										poolDrone.rightClick(minerals, false);
+										claimedMinerals.add(minerals);
+										poolDrone = null;
+										break;
+									}
+								}
+							}*/
+						}
+					}
+					break;
+				}
+		}
+		}
 		// Build Pylons
+		numProbes = countUnits(UnitTypes.Protoss_Probe);
 		if (bwapi.getSelf().getSupplyUsed() + 2 >= bwapi.getSelf().getSupplyTotal()
-				&& bwapi.getSelf().getSupplyTotal() > supplyCap) {
+				&& bwapi.getSelf().getSupplyTotal() >= supplyCap) {
 			bwapi.sendText("pylon required");
 			if (bwapi.getSelf().getMinerals() >= 100) {
 				for (Unit builder : bwapi.getMyUnits()) {
 					if (builder.getType() == UnitTypes.Protoss_Probe) {
 						builder.build(buildArea, UnitTypes.Protoss_Pylon);
 						supplyCap = bwapi.getSelf().getSupplyTotal();
-
+						break;
 					}
 
-					for (Unit minerals : bwapi.getNeutralUnits()) {
-						if (minerals.getType().isMineralField()
-								&& !claimedMinerals.contains(minerals)) {
-							double distance = poolDrone.getDistance(minerals);
+					//for (Unit minerals : bwapi.getNeutralUnits()) {
+					//	if (minerals.getType().isMineralField()
+					//			&& !claimedMinerals.contains(minerals)) {
+					//		double distance = poolDrone.getDistance(minerals);
 
-							if (distance < 300) {
-								builder.rightClick(minerals, false);
-								claimedMinerals.add(minerals);
-								break;
-							}
-						}
-					}
+					//	if (distance < 300) {
+					//			builder.rightClick(minerals, false);
+					//			claimedMinerals.add(minerals);
+					//			break;
+					//		}
+					//	}
+					//}
 				}
 			}
 		}
 		// spawn probes
-		else if (bwapi.getSelf().getMinerals() >= 50 && (numProbes <= 6 || (numProbes / countZealots()) < (1 /3.0))) {
+
+		else if (bwapi.getSelf().getMinerals() >= 50 && (numProbes <= 5 || (numProbes / (countZealots() +  1)) < (1 /2.5))) {
 			for (Unit unit : bwapi.getMyUnits()) {
 				if (unit.getType() == UnitTypes.Protoss_Nexus && unit.isCompleted()) {
 					unit.train(UnitTypes.Protoss_Probe);
+					break;
 						}
 					}
 				}
@@ -299,24 +292,21 @@ public class protossClient implements BWAPIEventListener {
 		// spawn zealots if we didn't spawn anything else
 		else if (bwapi.getSelf().getMinerals() >= 100) {
 			for (Unit unit : bwapi.getMyUnits()) {
-				//Should we should store which units are protoss gateways so we don't have to do a loop like this
 				if (unit.getType() == UnitTypes.Protoss_Gateway && unit.isCompleted()) {
 					unit.train(UnitTypes.Protoss_Zealot);
-						}
+					break;
 					}
 				}
+		}
         // Force probes to gather minerals if they are idle
         for (Unit probe : bwapi.getMyUnits()){
             if (probe.getType() == UnitTypes.Protoss_Probe){
-                if(probe.isIdle()){
+                if(!(probe.isGatheringGas() || probe.isGatheringMinerals() || probe.isConstructing())){
                     for (Unit minerals : bwapi.getNeutralUnits()) {
-                        if (minerals.getType().isMineralField()
-                                && !claimedMinerals.contains(minerals)) {
-                            double distance = poolDrone.getDistance(minerals);
-
+                        if (minerals.getType().isMineralField()) {
+                            double distance = probe.getDistance(minerals);
                             if (distance < 300) {
                                 probe.gather(minerals, false);
-                                claimedMinerals.add(minerals);
                                 break;
                             }
                         }
@@ -408,7 +398,7 @@ public class protossClient implements BWAPIEventListener {
     private int countUnits(UnitType searchType)
     {
         int count = 0;
-        for (Unit unit : idleUnits()) {
+        for (Unit unit : bwapi.getMyUnits()) {
             if (unit.getType() == searchType){
                 count += 1;
             }
@@ -417,7 +407,7 @@ public class protossClient implements BWAPIEventListener {
     }
 	private Unit[] getZealots() {
         ArrayList<Unit> zealots = new ArrayList<Unit>();
-		for (Unit unit : idleUnits()) {
+		for (Unit unit : bwapi.getMyUnits()) {
 			if (unit.getType() == UnitTypes.Protoss_Zealot){
 				zealots.add(unit);
 			}
@@ -569,4 +559,33 @@ public class protossClient implements BWAPIEventListener {
         }
         return enemyUnits.get(minIndex);
     }
+    private Position getBuildPosition(int offsetFromCenter){
+		Position buildArea= new Position(bwapi.getSelf().getStartLocation().getPX()+offsetFromCenter,bwapi.getSelf().getStartLocation().getPY());
+		if(bwapi.canBuildHere(buildArea, UnitTypes.Protoss_Pylon, true) == false){
+			buildArea= new Position(bwapi.getSelf().getStartLocation().getPX()-offsetFromCenter,bwapi.getSelf().getStartLocation().getPY());
+			if(bwapi.canBuildHere(buildArea, UnitTypes.Protoss_Pylon, true) == false){
+				buildArea= new Position(bwapi.getSelf().getStartLocation().getPX(),bwapi.getSelf().getStartLocation().getPY()+offsetFromCenter);
+				if(bwapi.canBuildHere(buildArea, UnitTypes.Protoss_Pylon, true) == false){
+					buildArea= new Position(bwapi.getSelf().getStartLocation().getPX(),bwapi.getSelf().getStartLocation().getPY()-offsetFromCenter);
+					if(bwapi.canBuildHere(buildArea, UnitTypes.Protoss_Pylon, true) == false){
+						buildArea= new Position(bwapi.getSelf().getStartLocation().getPX()-offsetFromCenter,bwapi.getSelf().getStartLocation().getPY()+offsetFromCenter);
+						if(bwapi.canBuildHere(buildArea, UnitTypes.Protoss_Pylon, true) == false){
+							buildArea= new Position(bwapi.getSelf().getStartLocation().getPX()-offsetFromCenter,bwapi.getSelf().getStartLocation().getPY()+offsetFromCenter);
+							if(bwapi.canBuildHere(buildArea, UnitTypes.Protoss_Pylon, true) == false){
+								buildArea= new Position(bwapi.getSelf().getStartLocation().getPX()+offsetFromCenter,bwapi.getSelf().getStartLocation().getPY()-offsetFromCenter);
+								if(bwapi.canBuildHere(buildArea, UnitTypes.Protoss_Pylon, true) == false) {
+									buildArea= new Position(bwapi.getSelf().getStartLocation().getPX()+offsetFromCenter,bwapi.getSelf().getStartLocation().getPY()+offsetFromCenter);
+									if(bwapi.canBuildHere(buildArea, UnitTypes.Protoss_Pylon, true) == false){
+										buildArea = getBuildPosition((int)(offsetFromCenter * 1.1));
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+
+		return buildArea;
+	}
 }
