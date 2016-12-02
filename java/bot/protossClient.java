@@ -115,6 +115,7 @@ public class protossClient implements BWAPIEventListener {
 	public void matchFrame() {
 		// print out some info about any upgrades or research happening
 		String msg = "=";
+        numProbes = countUnits(UnitTypes.Protoss_Probe);
 		for (TechType t : TechTypes.getAllTechTypes()) {
 			if (bwapi.getSelf().isResearching(t)) {
 				msg += "Researching " + t.getName() + "=";
@@ -258,9 +259,7 @@ public class protossClient implements BWAPIEventListener {
 					}
 				}
 			}
-					
-		
-		
+
 		// Build Pylons
 		if (bwapi.getSelf().getSupplyUsed() + 2 >= bwapi.getSelf().getSupplyTotal()
 				&& bwapi.getSelf().getSupplyTotal() > supplyCap) {
@@ -289,10 +288,11 @@ public class protossClient implements BWAPIEventListener {
 			}
 		}
 		// spawn probes
-		else if (bwapi.getSelf().getMinerals() >= 50 && (numProbes <= 4 || (numProbes / countZealots()) < (1 /3.0))) {
+		else if (bwapi.getSelf().getMinerals() >= 50 && (numProbes <= 6 || (numProbes / countZealots()) < (1 /3.0))) {
 			for (Unit unit : bwapi.getMyUnits()) {
 				if (unit.getType() == UnitTypes.Protoss_Nexus && unit.isCompleted()) {
 					unit.train(UnitTypes.Protoss_Probe);
+
 						}
 					}
 				}
@@ -306,8 +306,25 @@ public class protossClient implements BWAPIEventListener {
 						}
 					}
 				}
-			
-		
+        // Force probes to gather minerals if they are idle
+        for (Unit probe : bwapi.getMyUnits()){
+            if (probe.getType() == UnitTypes.Protoss_Probe){
+                if(probe.isIdle()){
+                    for (Unit minerals : bwapi.getNeutralUnits()) {
+                        if (minerals.getType().isMineralField()
+                                && !claimedMinerals.contains(minerals)) {
+                            double distance = poolDrone.getDistance(minerals);
+
+                            if (distance < 300) {
+                                probe.gather(minerals, false);
+                                claimedMinerals.add(minerals);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
 		//mass at least 8 zealots before attacking
 		// '8 zealots' should be a configurable value based on environment
 		//nitpicking on names here, we shouldn't use 'garrison' to describe units being massed for attack
@@ -382,12 +399,23 @@ public class protossClient implements BWAPIEventListener {
 	{
 		int zealots = 0;
 		for (Unit unit : idleUnits()) {
-			if (unit.getType() == UnitTypes.Protoss_Zealot){
+			if (unit.getType() == UnitTypes.Protoss_Probe){
 				zealots += 1;
 			}
 		}
 		return zealots;
 	}
+
+    private int countUnits(UnitType searchType)
+    {
+        int count = 0;
+        for (Unit unit : idleUnits()) {
+            if (unit.getType() == searchType){
+                count += 1;
+            }
+        }
+        return count;
+    }
 	private Unit[] getZealots() {
         ArrayList<Unit> zealots = new ArrayList<Unit>();
 		for (Unit unit : idleUnits()) {
@@ -423,15 +451,19 @@ public class protossClient implements BWAPIEventListener {
 	*/
 	private boolean zealotAttack(Unit[] zealotArray) {
 		boolean attackMoveMade = false;
+        //all should attack the most vulnerable enemy
+        //maybe should look for closest?
+        Unit enemyToAttack = getMostVulnerableEnemy();
 		for (Unit unit : zealotArray) {
+
 			if (unit.getType() == UnitTypes.Protoss_Zealot) {
-				//this is just the first enemy in the list.
-				//Also, how do we prevent their mission from changing.
-				for (Unit enemy : bwapi.getEnemyUnits()) {
-					unit.attack(enemy.getPosition(), false);
-					attackMoveMade = true;
-					break;
-				}
+                if (unit.isAttacking() || unit.isMoving()){
+                    //either the unit is attacking or moving (could be rallying) and no action should be taken
+                    attackMoveMade = true;
+                    continue;
+                }
+                unit.attack(enemyToAttack.getPosition(), false);
+                attackMoveMade = true;
 			}
 		}
 		return attackMoveMade;
@@ -520,8 +552,22 @@ public class protossClient implements BWAPIEventListener {
 		else {
 			return (myScore / enemyScore - 1);
 		}
-
-
 	}
 
+    private Unit getMostVulnerableEnemy(){
+        int index = 0;
+        int minIndex = 0;
+        double weakest = 1; //1 is the maximum value of the divison of hitpoints / init hitpoints
+        double tempHealth;
+        List<Unit> enemyUnits = bwapi.getEnemyUnits();
+        for (Unit enemyUnit: enemyUnits){
+            tempHealth = enemyUnit.getHitPoints() / enemyUnit.getInitialHitPoints();
+            if (tempHealth <  weakest){
+                weakest = tempHealth;
+                minIndex = index;
+            }
+            index += 1;
+        }
+        return enemyUnits.get(minIndex);
+    }
 }
