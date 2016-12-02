@@ -173,13 +173,14 @@ public class protossClient implements BWAPIEventListener {
 			}
 		}*/
 		//This seems like a pretty weak search for a suitable build location. Could we do an iteration of random values?
-		buildArea = getBuildPosition(200);
+		buildArea = getBuildPosition(bwapi.getSelf().getStartLocation(), 200, UnitTypes.Protoss_Pylon);
 		// build a pylon
 		if (bwapi.getSelf().getMinerals() >= 100 && poolDrone == null && pylonUp == false) {
 			for (Unit unit : bwapi.getMyUnits()) {
 				if (unit.getType() == UnitTypes.Protoss_Probe) {
 					poolDrone = unit;
 					unit.build(buildArea, UnitTypes.Protoss_Pylon);
+					gatewayUp = false;
 					pylonUp=true;
 					break;
 					//while(bwapi.canBuildHere(pyPos, UnitTypes.Protoss_Pylon, true))
@@ -205,23 +206,12 @@ public class protossClient implements BWAPIEventListener {
 			}
 		
 		// build the gateway next to the pylon
-		if(bwapi.getSelf().getMinerals() >= UnitTypes.Protoss_Gateway.getBuildScore() && gatewayUp == false){
+		if(bwapi.getSelf().getMinerals() >= UnitTypes.Protoss_Gateway.getBuildScore() && pylonUp && !gatewayUp){
 			for (Unit unit : bwapi.getMyUnits()) {
 				if (unit.getType() == UnitTypes.Protoss_Pylon && unit.isCompleted()) {
 					pyPos = new Position(unit.getPosition().getPX(), unit.getPosition().getPY());
 					bwapi.drawCircle(unit.getPosition(), 25, BWColor.Orange, false, false);
-
-					gatePos = new Position(pyPos.getPX() + 100, pyPos.getPY());
-					if (bwapi.canBuildHere(gatePos, UnitTypes.Protoss_Gateway, true) == false) {
-						gatePos = new Position(pyPos.getPX() - 100, pyPos.getPY());
-						if (bwapi.canBuildHere(gatePos, UnitTypes.Protoss_Gateway, true) == false) {
-							gatePos = new Position(pyPos.getPX(), pyPos.getPY() + 100);
-							if (bwapi.canBuildHere(gatePos, UnitTypes.Protoss_Gateway, true) == false) {
-								gatePos = new Position(pyPos.getPX(), pyPos.getPY() - 100);
-							}
-						}
-					}
-
+					gatePos = getBuildPosition(pyPos, 100, UnitTypes.Protoss_Gateway);
 					// build a gateway
 					bwapi.drawCircle(gatePos, 50, BWColor.Orange, false, false);
 					for (Unit probe : bwapi.getMyUnits()) {
@@ -259,6 +249,7 @@ public class protossClient implements BWAPIEventListener {
 				for (Unit builder : bwapi.getMyUnits()) {
 					if (builder.getType() == UnitTypes.Protoss_Probe) {
 						builder.build(buildArea, UnitTypes.Protoss_Pylon);
+						gatewayUp = false;
 						supplyCap = bwapi.getSelf().getSupplyTotal();
 						break;
 					}
@@ -290,13 +281,17 @@ public class protossClient implements BWAPIEventListener {
 				}
 					
 		// spawn zealots if we didn't spawn anything else
-		else if (bwapi.getSelf().getMinerals() >= 100) {
+		else if (bwapi.getSelf().getMinerals() >= UnitTypes.Protoss_Zealot.getBuildScore() && gatewayUp) {
+			int n_minerals = bwapi.getSelf().getMinerals();
 			for (Unit unit : bwapi.getMyUnits()) {
 				if (unit.getType() == UnitTypes.Protoss_Gateway && unit.isCompleted()) {
 					unit.train(UnitTypes.Protoss_Zealot);
-					break;
+					n_minerals -= UnitTypes.Protoss_Zealot.getBuildScore();
 					}
+				if(n_minerals < UnitTypes.Protoss_Zealot.getBuildScore()) {
+					break;
 				}
+			}
 		}
         // Force probes to gather minerals if they are idle
         for (Unit probe : bwapi.getMyUnits()){
@@ -451,8 +446,10 @@ public class protossClient implements BWAPIEventListener {
                     attackMoveMade = true;
                     continue;
                 }
-                unit.attack(enemyToAttack.getPosition(), false);
-                attackMoveMade = true;
+                if (enemyToAttack != null) {
+					unit.attack(enemyToAttack.getPosition(), false);
+					attackMoveMade = true;
+				}
 			}
 		}
 		return attackMoveMade;
@@ -550,33 +547,33 @@ public class protossClient implements BWAPIEventListener {
         double tempHealth;
         List<Unit> enemyUnits = bwapi.getEnemyUnits();
         for (Unit enemyUnit: enemyUnits){
-            tempHealth = enemyUnit.getHitPoints() / enemyUnit.getInitialHitPoints();
+            tempHealth = (enemyUnit.getHitPoints() + 1) / (enemyUnit.getInitialHitPoints() + 1);
             if (tempHealth <  weakest){
                 weakest = tempHealth;
                 minIndex = index;
             }
             index += 1;
         }
-        return enemyUnits.get(minIndex);
+        return enemyUnits.size() == 0 ? null : enemyUnits.get(minIndex);
     }
-    private Position getBuildPosition(int offsetFromCenter){
-		Position buildArea= new Position(bwapi.getSelf().getStartLocation().getPX()+offsetFromCenter,bwapi.getSelf().getStartLocation().getPY());
-		if(bwapi.canBuildHere(buildArea, UnitTypes.Protoss_Pylon, true) == false){
-			buildArea= new Position(bwapi.getSelf().getStartLocation().getPX()-offsetFromCenter,bwapi.getSelf().getStartLocation().getPY());
-			if(bwapi.canBuildHere(buildArea, UnitTypes.Protoss_Pylon, true) == false){
-				buildArea= new Position(bwapi.getSelf().getStartLocation().getPX(),bwapi.getSelf().getStartLocation().getPY()+offsetFromCenter);
-				if(bwapi.canBuildHere(buildArea, UnitTypes.Protoss_Pylon, true) == false){
-					buildArea= new Position(bwapi.getSelf().getStartLocation().getPX(),bwapi.getSelf().getStartLocation().getPY()-offsetFromCenter);
-					if(bwapi.canBuildHere(buildArea, UnitTypes.Protoss_Pylon, true) == false){
-						buildArea= new Position(bwapi.getSelf().getStartLocation().getPX()-offsetFromCenter,bwapi.getSelf().getStartLocation().getPY()+offsetFromCenter);
-						if(bwapi.canBuildHere(buildArea, UnitTypes.Protoss_Pylon, true) == false){
-							buildArea= new Position(bwapi.getSelf().getStartLocation().getPX()-offsetFromCenter,bwapi.getSelf().getStartLocation().getPY()+offsetFromCenter);
-							if(bwapi.canBuildHere(buildArea, UnitTypes.Protoss_Pylon, true) == false){
-								buildArea= new Position(bwapi.getSelf().getStartLocation().getPX()+offsetFromCenter,bwapi.getSelf().getStartLocation().getPY()-offsetFromCenter);
-								if(bwapi.canBuildHere(buildArea, UnitTypes.Protoss_Pylon, true) == false) {
-									buildArea= new Position(bwapi.getSelf().getStartLocation().getPX()+offsetFromCenter,bwapi.getSelf().getStartLocation().getPY()+offsetFromCenter);
-									if(bwapi.canBuildHere(buildArea, UnitTypes.Protoss_Pylon, true) == false){
-										buildArea = getBuildPosition((int)(offsetFromCenter * 1.1));
+    private Position getBuildPosition(Position base, int offsetFromCenter, UnitType type){
+		Position buildArea= new Position(base.getPX()+offsetFromCenter,base.getPY());
+		if(bwapi.canBuildHere(buildArea, type, true) == false){
+			buildArea= new Position(base.getPX()-offsetFromCenter,base.getPY());
+			if(bwapi.canBuildHere(buildArea, type, true) == false){
+				buildArea= new Position(base.getPX(),base.getPY()+offsetFromCenter);
+				if(bwapi.canBuildHere(buildArea, type, true) == false){
+					buildArea= new Position(base.getPX(),base.getPY()-offsetFromCenter);
+					if(bwapi.canBuildHere(buildArea, type, true) == false){
+						buildArea= new Position(base.getPX()-offsetFromCenter,base.getPY()+offsetFromCenter);
+						if(bwapi.canBuildHere(buildArea, type, true) == false){
+							buildArea= new Position(base.getPX()-offsetFromCenter,base.getPY()+offsetFromCenter);
+							if(bwapi.canBuildHere(buildArea, type, true) == false){
+								buildArea= new Position(base.getPX()+offsetFromCenter,base.getPY()-offsetFromCenter);
+								if(bwapi.canBuildHere(buildArea, type, true) == false) {
+									buildArea= new Position(base.getPX()+offsetFromCenter,base.getPY()+offsetFromCenter);
+									if(bwapi.canBuildHere(buildArea, type, true) == false){
+										buildArea = getBuildPosition(base, (int)(offsetFromCenter * 1.1), type);
 									}
 								}
 							}
