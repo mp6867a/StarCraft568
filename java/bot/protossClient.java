@@ -292,7 +292,6 @@ public class protossClient implements BWAPIEventListener {
 			for (Unit unit : bwapi.getMyUnits()) {
 				if (unit.getType() == UnitTypes.Protoss_Nexus && unit.isCompleted()) {
 					unit.train(UnitTypes.Protoss_Probe);
-
 						}
 					}
 				}
@@ -399,7 +398,7 @@ public class protossClient implements BWAPIEventListener {
 	{
 		int zealots = 0;
 		for (Unit unit : idleUnits()) {
-			if (unit.getType() == UnitTypes.Protoss_Probe){
+			if (unit.getType() == UnitTypes.Protoss_Zealot){
 				zealots += 1;
 			}
 		}
