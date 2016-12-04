@@ -3,11 +3,14 @@ package bot;
 import java.util.HashSet;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 
+import javafx.geometry.Pos;
 import jnibwapi.BWAPIEventListener;
 import jnibwapi.JNIBWAPI;
 import jnibwapi.Position;
 import jnibwapi.Unit;
+import jnibwapi.types.RaceType;
 import jnibwapi.types.TechType;
 import jnibwapi.types.TechType.TechTypes;
 import jnibwapi.types.UnitType;
@@ -59,6 +62,7 @@ public class protossClient implements BWAPIEventListener {
 	private Position pyPos;
 	//buildable position near first pylon
 	private Position gatePos;
+	private Position gasFieldPos;
 	//is the first pylon built
 	private boolean pylonUp=false;
 	//is the first gateway built
@@ -69,6 +73,15 @@ public class protossClient implements BWAPIEventListener {
 	private double probesIncrement = 1.0;
 	private double getProbesIncrementDivision = 0.95;
 	private boolean zealotAttackUnderway = false;
+	private RaceType myRaceType;
+	private RaceType enemyRaceType;
+	private UnitType builderType;
+	private int gasTrigger;
+	private int gasCollecters;
+	private boolean gasFieldBuilt;
+	private boolean gatheringGas;
+	private boolean gasFieldShouldBeBuilt;
+
 	/**
 	 * Create a Java AI.
 	 */
@@ -107,7 +120,14 @@ public class protossClient implements BWAPIEventListener {
 		claimedMinerals.clear();
 		warpedProbe = false;
 		poolDrone = null;
+		myRaceType = bwapi.getSelf().getRace();
 		supplyCap = 0;
+		gasCollecters = 2;
+		gasTrigger = 7;
+		gasFieldBuilt = false;
+		gasFieldShouldBeBuilt = false;
+		gatheringGas = false;
+		setBuilderType();
 	}
 	
 	/**
@@ -120,7 +140,7 @@ public class protossClient implements BWAPIEventListener {
 		//System.out.println("New Frame");
         numProbes = countUnits(UnitTypes.Protoss_Probe);
 		numZealots = countUnits(UnitTypes.Protoss_Zealot);
-		int alt = (int)(Math.sqrt(numZealots) * 2);
+		int alt = (int)(Math.sqrt(numZealots) * 2) + 2;
 		maxProbes = 5 > alt ? 5 : alt;
 		for (TechType t : TechTypes.getAllTechTypes()) {
 			if (bwapi.getSelf().isResearching(t)) {
@@ -157,10 +177,20 @@ public class protossClient implements BWAPIEventListener {
 				}
 			}
 		}
+		if (gasFieldShouldBeBuilt || (bwapi.getSelf().getMinerals() >= UnitTypes.Protoss_Assimilator.getMineralPrice() && !gasFieldBuilt && numProbes >= gasTrigger)) {
+			if (getUnitsOfType(UnitTypes.Protoss_Assimilator).size() == 0){
+				gasFieldShouldBeBuilt = true;
+			}
+			else{
+				gasFieldShouldBeBuilt = false;
+			}
+			buildGasField();
+			gasFieldBuilt = true;
+		}
 		//This seems like a pretty weak search for a suitable build location. Could we do an iteration of random values?
 		buildArea = getBuildPosition(bwapi.getSelf().getStartLocation(), 200, UnitTypes.Protoss_Pylon);
 		// build a pylon
-		if (bwapi.getSelf().getMinerals() >= 100 && pylonUp == false) {
+		if (bwapi.getSelf().getMinerals() >= UnitTypes.Protoss_Pylon.getMineralPrice() && pylonUp == false) {
 			for (Unit unit : bwapi.getMyUnits()) {
 				if (unit.getType() == UnitTypes.Protoss_Probe) {
 					poolDrone = unit;
@@ -173,15 +203,13 @@ public class protossClient implements BWAPIEventListener {
 				}
 			}
 		// build the gateway next to the pylon
-		if(bwapi.getSelf().getMinerals() >= UnitTypes.Protoss_Gateway.getBuildScore() && pyPos != null && !gatewayUp){
+		if(bwapi.getSelf().getMinerals() >= UnitTypes.Protoss_Gateway.getMineralPrice() && pyPos != null && (!gatewayUp || getUnitsOfType(UnitTypes.Protoss_Gateway).size() == 0)){
 			gatePos = getBuildPosition(pyPos, 100, UnitTypes.Protoss_Gateway);
 			// build a gateway
 			if (gatePos != null) {
 				bwapi.drawCircle(gatePos, 50, BWColor.Orange, false, false);
 				for (Unit probe : bwapi.getMyUnits()) {
 					if (probe.getType() == UnitTypes.Protoss_Probe) {
-						poolDrone = probe;
-
 						probe.build(gatePos, UnitTypes.Protoss_Gateway);
 						gatewayUp = true;
 						break;
@@ -193,7 +221,7 @@ public class protossClient implements BWAPIEventListener {
 		if (bwapi.getSelf().getSupplyUsed() + 2 >= bwapi.getSelf().getSupplyTotal()
 				&& bwapi.getSelf().getSupplyTotal() >= supplyCap) {
 			bwapi.sendText("pylon required");
-			if (bwapi.getSelf().getMinerals() >= 100) {
+			if (bwapi.getSelf().getMinerals() >= UnitTypes.Protoss_Probe.getMineralPrice()) {
 				for (Unit builder : bwapi.getMyUnits()) {
 					if (builder.getType() == UnitTypes.Protoss_Probe) {
 						builder.build(buildArea, UnitTypes.Protoss_Pylon);
@@ -223,41 +251,25 @@ public class protossClient implements BWAPIEventListener {
 			for (Unit unit : bwapi.getMyUnits()) {
 				if (unit.getType() == UnitTypes.Protoss_Nexus && unit.isCompleted()) {
 					unit.train(UnitTypes.Protoss_Probe);
-
 					break;
 						}
 					}
 				}
 					
 		// spawn zealots if we didn't spawn anything else
-		else if (bwapi.getSelf().getMinerals() >= UnitTypes.Protoss_Zealot.getBuildScore() && gatewayUp) {
+		else if (bwapi.getSelf().getMinerals() >= UnitTypes.Protoss_Zealot.getMineralPrice() && gatewayUp) {
 			int n_minerals = bwapi.getSelf().getMinerals();
 			for (Unit unit : bwapi.getMyUnits()) {
 				if (unit.getType() == UnitTypes.Protoss_Gateway && unit.isCompleted()) {
 					unit.train(UnitTypes.Protoss_Zealot);
-					n_minerals -= UnitTypes.Protoss_Zealot.getBuildScore();
+					n_minerals -= UnitTypes.Protoss_Zealot.getMineralPrice();
 					}
-				if(n_minerals < UnitTypes.Protoss_Zealot.getBuildScore()) {
+				if(n_minerals < UnitTypes.Protoss_Zealot.getMineralPrice()) {
 					break;
 				}
 			}
 		}
-        // Force probes to gather minerals if they are idle
-        for (Unit probe : bwapi.getMyUnits()){
-            if (probe.getType() == UnitTypes.Protoss_Probe){
-                if(probe.isIdle()){
-                    for (Unit minerals : bwapi.getNeutralUnits()) {
-                        if (minerals.getType().isMineralField()) {
-                            double distance = probe.getDistance(minerals);
-                            if (distance < 300) {
-                                probe.gather(minerals, false);
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        dispatchProbes();
 		//mass at least 8 zealots before attacking
 		// '8 zealots' should be a configurable value based on environment
 		//nitpicking on names here, we shouldn't use 'garrison' to describe units being massed for attack
@@ -538,6 +550,7 @@ public class protossClient implements BWAPIEventListener {
 
 		return buildArea;
 	}
+
 	private List<Unit> getUnitsOfType(UnitType unitTypeSought){
 		List<Unit> unitsOfTypeSought = new ArrayList<Unit>();
 		for(Unit unit: bwapi.getMyUnits()){
@@ -547,4 +560,124 @@ public class protossClient implements BWAPIEventListener {
 		}
 		return unitsOfTypeSought;
 	}
+
+	private void buildGasField(){
+		gasFieldPos = getGasLocation();
+		try {
+			getBestNUnits(builderType, 1).get(0).build(gasFieldPos, UnitTypes.Protoss_Assimilator);
+		}
+		catch (IndexOutOfBoundsException e){
+			System.out.println("No builders exist!");
+		}
+
+	}
+
+	private void dispatchToGasField(){
+		Unit geyser = getUnitsOfType(UnitTypes.Protoss_Assimilator).get(0);
+		List<Unit> builders = getBestNUnits(builderType, 1);
+		for (Unit builder : builders) {
+			if (!builder.isGatheringGas()){
+				builder.gather(geyser, false);
+				return;
+			}
+		}
+	}
+
+	/**
+	 * get the best units availible by selecting idle ones first.
+	 * @param n_units
+	 * @return
+	 */
+	private List<Unit> getBestNUnits(UnitType type, int n_units) {
+		List<Unit> builders = getUnitsOfType(type);
+		List<Unit> best = new ArrayList<Unit>();
+		for (Unit builder : builders){
+			if (n_units == 0){
+				return builders;
+			}
+			if (builder.isIdle()){
+				best.add(builder);
+				n_units -= 1;
+			}
+		}
+		//Now we don't care if the unit is idle.
+		for (Unit builder : builders){
+			if (n_units == 0){
+				return builders;
+			}
+			best.add(builder);
+			n_units -= 1;
+		}
+		return builders;
+	}
+
+	private Position getGasLocation(){
+		List<Unit> geysers = new ArrayList<Unit>();
+		List<Integer> distances = new ArrayList<Integer>();
+		int minDistance = Integer.MAX_VALUE;
+		int minIndex = 0;
+		for (Unit unit : bwapi.getNeutralUnits()){
+			if (unit.getType() == UnitTypes.Resource_Vespene_Geyser){
+				geysers.add(unit);
+				bwapi.drawCircle(unit.getTilePosition(), 50, BWColor.Blue, true, false);
+				distances.add(bwapi.getSelf().getStartLocation().getApproxBDistance(unit.getTilePosition()));
+			}
+		}
+		for (int i = 0; i < distances.size(); i++){
+			if (distances.get(i) < minDistance){
+				minIndex = i;
+				minDistance = distances.get(i);
+			}
+		}
+		return geysers.get(minIndex).getTilePosition();
+	}
+	private void setBuilderType(){
+		if (myRaceType == RaceType.RaceTypes.Protoss) {
+			builderType = UnitTypes.Protoss_Probe;
+		}
+		if (myRaceType == RaceType.RaceTypes.Zerg) {
+			builderType = UnitTypes.Zerg_Drone;
+		}
+		if (myRaceType == RaceType.RaceTypes.Terran) {
+			builderType = UnitTypes.Terran_SCV;
+		}
+	}
+	private void dispatchProbes(){
+		List<Unit> probes = getUnitsOfType(builderType);
+		List<Unit> minerals = bwapi.getNeutralUnits();
+
+		int gasGatherers = 0;
+		int mineralGatherers = 0;
+		int builders = 0;
+		boolean doingSomething = false;
+		for (Unit builder : probes){
+			if (builder.isGatheringGas()){
+				gasGatherers += 1;
+				doingSomething = true;
+			}
+			if (builder.isConstructing()){
+				builders += 1;
+				doingSomething = true;
+			}
+			if (builder.isGatheringMinerals()){
+				mineralGatherers += 1;
+				doingSomething = true;
+			}
+			if (!doingSomething){
+				for (Unit mineral : minerals){
+					if(mineral.getType() == UnitTypes.Resource_Mineral_Field && builder.getDistance(mineral) < 300) {
+						builder.gather(mineral, false);
+					}
+				}
+			}
+			doingSomething = false;
+		}
+		if (getUnitsOfType(UnitTypes.Protoss_Assimilator).size() > 0) {
+			while (gasGatherers < gasCollecters) {
+				dispatchToGasField();
+				gasGatherers += 1;
+			}
+		}
+	}
+
 }
