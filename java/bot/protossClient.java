@@ -199,9 +199,9 @@ public class protossClient implements BWAPIEventListener {
 					gatewayUp = false; //build a new gateway
 					pylonUp=true;
 					break;
-					}
 				}
 			}
+		}
 		// build the gateway next to the pylon
 		if(bwapi.getSelf().getMinerals() >= UnitTypes.Protoss_Gateway.getMineralPrice() && pyPos != null && (!gatewayUp || getUnitsOfType(UnitTypes.Protoss_Gateway).size() == 0)){
 			gatePos = getBuildPosition(pyPos, 100, UnitTypes.Protoss_Gateway);
