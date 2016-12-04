@@ -69,11 +69,11 @@ public class BuildOrder {
     public void createBuildOrder(){
         //read from text file
         String filepath = "BuildOrders/" + myRace.getName() + "/" +enemyRace.getName() + "/buildorder.txt";
+        String[] tempLine = new String[2];
         try {
             FileReader fileReader = new FileReader(filepath);
             BufferedReader reader = new BufferedReader(fileReader);
             String line;
-            String[] tempLine;
             UnitType tempUnitType;
             Integer tempInt;
             while ((line = reader.readLine()) != null) {
@@ -85,15 +85,15 @@ public class BuildOrder {
                     myBuildOrderQuantities.add(tempInt);
                 }
                 else{
-                    System.out.println("Unit Type: " + tempLine[1] + " is not a recognized unit.");
+                    System.out.println("Unit Type: " + tempLine[0] + " is not a recognized unit.");
                 }
             }
         }
         catch (NumberFormatException e){
-                System.out.println("Critical error (quantity is not a number): build order could not be loaded.");
+                System.out.println("Critical error (" + tempLine[1] + " is not a number): build order could not be loaded.");
             }
         catch (FileNotFoundException e) {
-            System.out.println("Critical error (File 404): build order could not be loaded.");
+            System.out.println("Critical error (" + filepath + " does not exist): build order could not be loaded.");
         }
         catch (IOException e){
             System.out.println("Critical error (IO error): build order could not be loaded.");
