@@ -82,6 +82,12 @@ public class protossClient implements BWAPIEventListener {
 	private boolean gatheringGas;
 	private boolean gasFieldShouldBeBuilt;
 
+	private List<Unit> gateways;
+	private List<Unit> probes;
+	private List<Unit> zealots;
+	private List<Unit> nexus;
+
+
 	/**
 	 * Create a Java AI.
 	 */
@@ -127,6 +133,12 @@ public class protossClient implements BWAPIEventListener {
 		gasFieldBuilt = false;
 		gasFieldShouldBeBuilt = false;
 		gatheringGas = false;
+
+		probes = new ArrayList<Unit>();
+		gateways = new ArrayList<Unit>();
+		zealots = new ArrayList<Unit>();
+		nexus = new ArrayList<Unit>();
+
 		setBuilderType();
 	}
 	
@@ -135,11 +147,12 @@ public class protossClient implements BWAPIEventListener {
 	 */
 	@Override
 	public void matchFrame() {
+		countPopulation();
 		// print out some info about any upgrades or research happening
 		String msg = "=";
 		//System.out.println("New Frame");
-        numProbes = countUnits(UnitTypes.Protoss_Probe);
-		numZealots = countUnits(UnitTypes.Protoss_Zealot);
+        numProbes = probes.size();
+		numZealots = zealots.size();
 		int alt = (int)(Math.sqrt(numZealots) * 2) + 2;
 		maxProbes = 5 > alt ? 5 : alt;
 		for (TechType t : TechTypes.getAllTechTypes()) {
@@ -229,33 +242,18 @@ public class protossClient implements BWAPIEventListener {
 						supplyCap = bwapi.getSelf().getSupplyTotal();
 						break;
 					}
-
-					//for (Unit minerals : bwapi.getNeutralUnits()) {
-					//	if (minerals.getType().isMineralField()
-					//			&& !claimedMinerals.contains(minerals)) {
-					//		double distance = poolDrone.getDistance(minerals);
-
-					//	if (distance < 300) {
-					//			builder.rightClick(minerals, false);
-					//			claimedMinerals.add(minerals);
-					//			break;
-					//		}
-					//	}
-					//}
 				}
 			}
 		}
 		// spawn probes
-
 		else if (bwapi.getSelf().getMinerals() >= 50 && (numProbes <= maxProbes)){
 			for (Unit unit : bwapi.getMyUnits()) {
 				if (unit.getType() == UnitTypes.Protoss_Nexus && unit.isCompleted()) {
 					unit.train(UnitTypes.Protoss_Probe);
 					break;
-						}
-					}
 				}
-					
+			}
+		}
 		// spawn zealots if we didn't spawn anything else
 		else if (bwapi.getSelf().getMinerals() >= UnitTypes.Protoss_Zealot.getMineralPrice() && gatewayUp) {
 			int n_minerals = bwapi.getSelf().getMinerals();
@@ -263,7 +261,7 @@ public class protossClient implements BWAPIEventListener {
 				if (unit.getType() == UnitTypes.Protoss_Gateway && unit.isCompleted()) {
 					unit.train(UnitTypes.Protoss_Zealot);
 					n_minerals -= UnitTypes.Protoss_Zealot.getMineralPrice();
-					}
+				}
 				if(n_minerals < UnitTypes.Protoss_Zealot.getMineralPrice()) {
 					break;
 				}
@@ -294,7 +292,7 @@ public class protossClient implements BWAPIEventListener {
 			}
 		}
 		else {
-			if(countZealots() < lossTolerance * zealotsAttacking.length || strengthBalance <= strengthDisadvantage) {
+			if(zealots.size() < lossTolerance * zealotsAttacking.length || strengthBalance <= strengthDisadvantage) {
 				//some form of retreat if we are taking on large losses or at a disadvantage
 			}
 			else if (zealotAttackUnderway){
@@ -339,17 +337,6 @@ public class protossClient implements BWAPIEventListener {
 	public void unitComplete(int unitID) {}
 	@Override
 	public void playerDropped(int playerID) {}
-
-	private int countZealots()
-	{
-		int zealots = 0;
-		for (Unit unit : idleUnits()) {
-			if (unit.getType() == UnitTypes.Protoss_Zealot){
-				zealots += 1;
-			}
-		}
-		return zealots;
-	}
 
     private int countUnits(UnitType searchType)
     {
@@ -680,4 +667,60 @@ public class protossClient implements BWAPIEventListener {
 		}
 	}
 
+	private void wipePopulations(){
+		zealots = new ArrayList<Unit>();
+		gateways = new ArrayList<Unit>();
+		probes = new ArrayList<Unit>();
+		nexus = new ArrayList<Unit>();
+	}
+
+	private void countPopulation(){
+		wipePopulations();
+		for (Unit unit : bwapi.getMyUnits()){
+			if (unit.getType() == UnitTypes.Protoss_Probe){
+				probes.add(unit);
+			}
+			if (unit.getType() == UnitTypes.Protoss_Zealot){
+				zealots.add(unit);
+			}
+			if (unit.getType() == UnitTypes.Protoss_Gateway){
+				gateways.add(unit);
+			}
+			if (unit.getType() == UnitTypes.Protoss_Nexus){
+				nexus.add(unit);
+			}
+		}
+	}
+	private boolean build(UnitType building, Position basePos){
+		Position buildPos = getBuildPosition(basePos, 100, building);
+		try {
+			Unit bestProbe = getBestNUnits(UnitTypes.Protoss_Probe, 1).get(0);
+			if (bwapi.getSelf().getMinerals() >= building.getMineralPrice() && bwapi.getSelf().getGas() > building.getGasPrice()){
+				bestProbe.build(basePos, building);
+				return true;
+			}
+		}
+		catch (IndexOutOfBoundsException e){
+			//No probes exist
+			return false;
+		}
+		//Not enough minerals
+		return false;
+	}
+	private boolean train(UnitType unit){
+		try {
+			UnitType buildingThatMakes = null; //TODO some way to get this building
+			Unit bestBuilding = getBestNUnits(buildingThatMakes, 1).get(0);
+			if (bwapi.getSelf().getMinerals() >= unit.getMineralPrice() && bwapi.getSelf().getGas() > unit.getGasPrice()){
+				bestBuilding.train(unit);
+				return true;
+			}
+		}
+		catch (IndexOutOfBoundsException e) {
+			//No building exists
+			return false;
+		}
+		//Not enough minerals
+		return false;
+	}
 }

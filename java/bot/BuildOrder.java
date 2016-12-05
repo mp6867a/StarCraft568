@@ -115,6 +115,10 @@ public class BuildOrder {
     }
 
     private UnitType getUnitType(String unitName){
+        return getUnitType(unitName, myRace);
+    }
+
+    public static UnitType getUnitType(String unitName, RaceType myRace){
         UnitType tempType;
         if (myRace == protoss){
             tempType = UnitTypes.Protoss_Assimilator;
