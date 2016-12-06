@@ -183,7 +183,7 @@ public class protossClient implements BWAPIEventListener {
 				//If the build was successful, but it was a building, then we must check if building has actually started!
 				if (lastState == REQUISITE_BUILDING_DOES_NOT_EXIST || lastState == NO_SUITABLE_BUILD_LOCATION ||
 						!unitTypeUnderConstruction.isBuilding() ||
-						getUnitsOfType(unitTypeUnderConstruction).size() != currentCount){
+						(getUnitsOfType(unitTypeUnderConstruction).size() != currentCount && isAllCompleted(unitTypeUnderConstruction))){
 					unitTypeUnderConstruction = buildOrder.getNextBuild();
 					currentCount = getUnitsOfType(unitTypeUnderConstruction).size();
 					lastState = buildAgnostic(unitTypeUnderConstruction);
@@ -829,5 +829,12 @@ public class protossClient implements BWAPIEventListener {
 		int distanceToEdgeMaxY = bwapi.getMap().getSize().getPY() - coordinate.getPY();
 		return Math.min(Math.min(distanceToEdgeMinX, distanceToEdgeMaxX), Math.min(distanceToEdgeMinY, distanceToEdgeMaxY));
 	}
-
+	private boolean isAllCompleted(UnitType type){
+		for (Unit unit : getUnitsOfType(type)){
+			if (!unit.isCompleted()){
+				return false;
+			}
+		}
+		return true;
+	}
 }
