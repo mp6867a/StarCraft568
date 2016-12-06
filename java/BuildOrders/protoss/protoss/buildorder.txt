@@ -1,1 +1,14 @@
+Protoss_Probe, 1
+Protoss_Gateway, 1
 Protoss_Pylon, 1
+Protoss_Zealot, 1
+Protoss_Zealot, 1
+Protoss_Pylon, 1
+Protoss_Zealot, 3
+Protoss_Probe, 1
+Protoss_Pylon, 1
+Protoss_Zealot, 3
+default
+Protoss_Pylon, 1
+Protoss_Probe, 1
+Protoss_Pylon, 6

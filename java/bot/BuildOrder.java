@@ -35,6 +35,14 @@ public class BuildOrder {
     private int myBuildOrderInterStep;
     private int myBuildOrderIntraStep;
 
+    private List<UnitType> myBuildOrderDefault;
+    private List<Integer> myBuildOrderDefaultQuantities;
+
+    private int myBuildOrderDefaultInterStep;
+    private int myBuildOrderDefaultIntraStep;
+
+    private boolean toDefault;
+
     private int myStrength;
     private int enemyStrength;
 
@@ -46,6 +54,8 @@ public class BuildOrder {
 
     private RaceType myRace;
     private RaceType enemyRace;
+
+    private String defaultKey;
 
     public static RaceType protoss = RaceType.RaceTypes.Protoss;
     public static RaceType zerg = RaceType.RaceTypes.Zerg;
@@ -61,14 +71,24 @@ public class BuildOrder {
         myBuildOrderIntraStep = 0;
         myBuildOrderInterStep = 0;
 
+        myBuildOrderDefaultInterStep = 0;
+        myBuildOrderDefaultIntraStep = 0;
+
         myBuildOrder = new ArrayList<UnitType>();
         myBuildOrderQuantities = new ArrayList<Integer>();
+
+        myBuildOrderDefault = new ArrayList<UnitType>();
+        myBuildOrderDefaultQuantities = new ArrayList<Integer>();
+
+        toDefault = false;
+
+        defaultKey = "default";
 
         createBuildOrder();
     }
     public void createBuildOrder(){
         //read from text file
-        String filepath = "BuildOrders/" + myRace.getName() + "/" +enemyRace.getName() + "/buildorder.txt";
+        String filepath = "src/java/BuildOrders/" + myRace.getName().toLowerCase() + "/" +enemyRace.getName().toLowerCase() + "/buildorder.txt";
         String[] tempLine = new String[2];
         try {
             FileReader fileReader = new FileReader(filepath);
@@ -77,41 +97,71 @@ public class BuildOrder {
             UnitType tempUnitType;
             Integer tempInt;
             while ((line = reader.readLine()) != null) {
+                if (line.toLowerCase().equals(defaultKey)){
+                    //all units are now to be added to the infinite default case
+                    toDefault = true;
+                    continue;
+                }
                 tempLine = line.split(",");
-                tempUnitType = getUnitType(tempLine[0]);
-                tempInt = Integer.parseInt(tempLine[1]);
+                tempUnitType = getUnitType(tempLine[0].replace('_', ' '));
+                tempInt = Integer.parseInt(tempLine[1].trim());
                 if (tempUnitType != null) {
-                    myBuildOrder.add(tempUnitType);
-                    myBuildOrderQuantities.add(tempInt);
+                    if (!toDefault) {
+                        myBuildOrder.add(tempUnitType);
+                        myBuildOrderQuantities.add(tempInt);
+                    }
+                    else{
+                        myBuildOrderDefault.add(tempUnitType);
+                        myBuildOrderDefaultQuantities.add(tempInt);
+                        System.out.println("Now adding units to default loop.");
+                    }
                 }
                 else{
                     System.out.println("Unit Type: " + tempLine[0] + " is not a recognized unit.");
                 }
             }
+            reader.close();
+            fileReader.close();
+            toDefault = false;
         }
         catch (NumberFormatException e){
                 System.out.println("Critical error (" + tempLine[1] + " is not a number): build order could not be loaded.");
             }
         catch (FileNotFoundException e) {
             System.out.println("Critical error (" + filepath + " does not exist): build order could not be loaded.");
+
         }
         catch (IOException e){
             System.out.println("Critical error (IO error): build order could not be loaded.");
         }
     }
     public UnitType getNextBuild(){
-        if (myBuildOrderIntraStep == myBuildOrderQuantities.get(myBuildOrderInterStep)){
-            myBuildOrderIntraStep = 0;
-            myBuildOrderInterStep += 1;
+        if (!toDefault){
+            if (myBuildOrderIntraStep == myBuildOrderQuantities.get(myBuildOrderInterStep)){
+                myBuildOrderIntraStep = 0;
+                myBuildOrderInterStep += 1;
+            }
+            else{
+                myBuildOrderIntraStep += 1;
+            }
+            if (myBuildOrderInterStep >= myBuildOrder.size()){
+                System.out.println("Your explicit build order has been exhausted.");
+                toDefault = true;
+                return getNextBuild();
+            }
+            return myBuildOrder.get(myBuildOrderInterStep);
         }
         else{
-            myBuildOrderIntraStep += 1;
+            if (myBuildOrderDefaultIntraStep == myBuildOrderDefaultQuantities.get(myBuildOrderDefaultInterStep)){
+                myBuildOrderDefaultIntraStep = 0;
+                myBuildOrderDefaultInterStep += 1;
+                myBuildOrderDefaultIntraStep %= myBuildOrderDefault.size();
+            }
+            else{
+                myBuildOrderDefaultIntraStep += 1;
+            }
+            return myBuildOrderDefault.get(myBuildOrderDefaultInterStep);
         }
-        if (myBuildOrderInterStep >= myBuildOrder.size()){
-            System.out.println("Your build order has been exhausted.");
-            return null;
-        }
-        return myBuildOrder.get(myBuildOrderInterStep);
     }
 
     private UnitType getUnitType(String unitName){

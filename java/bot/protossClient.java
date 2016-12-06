@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
+import com.sun.jmx.snmp.SnmpUnknownSecModelException;
 import javafx.geometry.Pos;
 import jnibwapi.BWAPIEventListener;
 import jnibwapi.JNIBWAPI;
@@ -18,6 +19,10 @@ import jnibwapi.types.UnitType.UnitTypes;
 import jnibwapi.types.UpgradeType;
 import jnibwapi.types.UpgradeType.UpgradeTypes;
 import jnibwapi.util.BWColor;
+import bot.BuildOrder;
+
+import javax.lang.model.type.UnionType;
+
 
 /**
  * Example Java AI Client using JNI-BWAPI.
@@ -76,6 +81,7 @@ public class protossClient implements BWAPIEventListener {
 	private RaceType myRaceType;
 	private RaceType enemyRaceType;
 	private UnitType builderType;
+	private UnitType supplyType;
 	private int gasTrigger;
 	private int gasCollecters;
 	private boolean gasFieldBuilt;
@@ -87,6 +93,19 @@ public class protossClient implements BWAPIEventListener {
 	private List<Unit> zealots;
 	private List<Unit> nexus;
 
+	private BuildOrder buildOrder;
+
+	private UnitType unitTypeUnderConstruction;
+
+	public static final int SUCCESSFUL = 0;
+	public static final int NOT_ENOUGH_MINERALS = 1;
+	public static final int NOT_ENOUGH_GAS = 2;
+	public static final int NOT_ENOUGH_MINERALS_AND_GAS = 3;
+	public static final int REQUISITE_BUILDING_DOES_NOT_EXIST = 4;
+
+	private int lastState;
+
+	private boolean diagnosticMode;
 
 	/**
 	 * Create a Java AI.
@@ -116,6 +135,8 @@ public class protossClient implements BWAPIEventListener {
 	 */
 	@Override
 	public void matchStart() {
+		diagnosticMode = true;
+
 		System.out.println("Game Started");
 		
 		bwapi.enableUserInput();
@@ -133,11 +154,14 @@ public class protossClient implements BWAPIEventListener {
 		gasFieldBuilt = false;
 		gasFieldShouldBeBuilt = false;
 		gatheringGas = false;
+		lastState = SUCCESSFUL;
 
 		probes = new ArrayList<Unit>();
 		gateways = new ArrayList<Unit>();
 		zealots = new ArrayList<Unit>();
 		nexus = new ArrayList<Unit>();
+
+		buildOrder = new BuildOrder(bwapi.getSelf(), bwapi.getEnemies().iterator().next());
 
 		setBuilderType();
 	}
@@ -149,48 +173,11 @@ public class protossClient implements BWAPIEventListener {
 	public void matchFrame() {
 		countPopulation();
 		// print out some info about any upgrades or research happening
-		String msg = "=";
-		//System.out.println("New Frame");
-        numProbes = probes.size();
-		numZealots = zealots.size();
-		int alt = (int)(Math.sqrt(numZealots) * 2) + 2;
-		maxProbes = 5 > alt ? 5 : alt;
-		for (TechType t : TechTypes.getAllTechTypes()) {
-			if (bwapi.getSelf().isResearching(t)) {
-				msg += "Researching " + t.getName() + "=";
-			}
-			// Exclude tech that is given at the start of the game
-			UnitType whatResearches = t.getWhatResearches();
-			if (whatResearches == UnitTypes.None) {
-				continue;
-			}
-			if (bwapi.getSelf().isResearched(t)) {
-				msg += "Researched " + t.getName() + "=";
-			}
-		}
-		for (UpgradeType t : UpgradeTypes.getAllUpgradeTypes()) {
-			if (bwapi.getSelf().isUpgrading(t)) {
-				msg += "Upgrading " + t.getName() + "=";
-			}
-			if (bwapi.getSelf().getUpgradeLevel(t) > 0) {
-				int level = bwapi.getSelf().getUpgradeLevel(t);
-				msg += "Upgraded " + t.getName() + " to level " + level + "=";
-			}
-		}
-		bwapi.drawText(new Position(0, 20), msg, true);
 		// draw the terrain information
 		bwapi.getMap().drawTerrainData(bwapi);
-		// spawn a drone
-		for (Unit unit : bwapi.getMyUnits()) {
-			// Note you can use referential equality
-			if (unit.getType() == UnitTypes.Protoss_Nexus) {
-				if (bwapi.getSelf().getMinerals() >= 50 && !warpedProbe && numProbes <= maxProbes) {
-					unit.morph(UnitTypes.Protoss_Probe);
-					warpedProbe = true;
-				}
-			}
-		}
-		if (gasFieldShouldBeBuilt || (bwapi.getSelf().getMinerals() >= UnitTypes.Protoss_Assimilator.getMineralPrice() && !gasFieldBuilt && numProbes >= gasTrigger)) {
+		dispatchProbes();
+		//Building gas fields is to be handled outside of Build Order
+		if (gasFieldShouldBeBuilt || (bwapi.getSelf().getMinerals() >= UnitTypes.Protoss_Assimilator.getMineralPrice() && !gasFieldBuilt)) {
 			if (getUnitsOfType(UnitTypes.Protoss_Assimilator).size() == 0){
 				gasFieldShouldBeBuilt = true;
 			}
@@ -200,106 +187,22 @@ public class protossClient implements BWAPIEventListener {
 			buildGasField();
 			gasFieldBuilt = true;
 		}
-		//This seems like a pretty weak search for a suitable build location. Could we do an iteration of random values?
-		buildArea = getBuildPosition(bwapi.getSelf().getStartLocation(), 200, UnitTypes.Protoss_Pylon);
-		// build a pylon
-		if (bwapi.getSelf().getMinerals() >= UnitTypes.Protoss_Pylon.getMineralPrice() && pylonUp == false) {
-			for (Unit unit : bwapi.getMyUnits()) {
-				if (unit.getType() == UnitTypes.Protoss_Probe) {
-					poolDrone = unit;
-					unit.build(buildArea, UnitTypes.Protoss_Pylon);
-					pyPos = buildArea;
-					gatewayUp = false; //build a new gateway
-					pylonUp=true;
-					break;
+		else if (gasFieldBuilt && !gasFieldShouldBeBuilt){
+			//check if a supply unit is needed.
+			if(!buildSupplyIfNeeded()){
+				if (lastState == SUCCESSFUL || lastState == REQUISITE_BUILDING_DOES_NOT_EXIST) {
+					unitTypeUnderConstruction = buildOrder.getNextBuild();
+					lastState = buildAgnostic(unitTypeUnderConstruction);
+				}
+				else{
+					//There is a deficit in gas or minerals... try to build again
+					//This block could include logic on rearranging workers to fetch the resource in need.
+					lastState = buildAgnostic(unitTypeUnderConstruction);
 				}
 			}
 		}
-		// build the gateway next to the pylon
-		if(bwapi.getSelf().getMinerals() >= UnitTypes.Protoss_Gateway.getMineralPrice() && pyPos != null && (!gatewayUp || getUnitsOfType(UnitTypes.Protoss_Gateway).size() == 0)){
-			gatePos = getBuildPosition(pyPos, 100, UnitTypes.Protoss_Gateway);
-			// build a gateway
-			if (gatePos != null) {
-				bwapi.drawCircle(gatePos, 50, BWColor.Orange, false, false);
-				for (Unit probe : bwapi.getMyUnits()) {
-					if (probe.getType() == UnitTypes.Protoss_Probe) {
-						probe.build(gatePos, UnitTypes.Protoss_Gateway);
-						gatewayUp = true;
-						break;
-					}
-				}
-			}
-		}
-		// Build Pylons
-		if (bwapi.getSelf().getSupplyUsed() + 2 >= bwapi.getSelf().getSupplyTotal()
-				&& bwapi.getSelf().getSupplyTotal() >= supplyCap) {
-			bwapi.sendText("pylon required");
-			if (bwapi.getSelf().getMinerals() >= UnitTypes.Protoss_Probe.getMineralPrice()) {
-				for (Unit builder : bwapi.getMyUnits()) {
-					if (builder.getType() == UnitTypes.Protoss_Probe) {
-						builder.build(buildArea, UnitTypes.Protoss_Pylon);
-						gatewayUp = false;
-						supplyCap = bwapi.getSelf().getSupplyTotal();
-						break;
-					}
-				}
-			}
-		}
-		// spawn probes
-		else if (bwapi.getSelf().getMinerals() >= 50 && (numProbes <= maxProbes)){
-			for (Unit unit : bwapi.getMyUnits()) {
-				if (unit.getType() == UnitTypes.Protoss_Nexus && unit.isCompleted()) {
-					unit.train(UnitTypes.Protoss_Probe);
-					break;
-				}
-			}
-		}
-		// spawn zealots if we didn't spawn anything else
-		else if (bwapi.getSelf().getMinerals() >= UnitTypes.Protoss_Zealot.getMineralPrice() && gatewayUp) {
-			int n_minerals = bwapi.getSelf().getMinerals();
-			for (Unit unit : bwapi.getMyUnits()) {
-				if (unit.getType() == UnitTypes.Protoss_Gateway && unit.isCompleted()) {
-					unit.train(UnitTypes.Protoss_Zealot);
-					n_minerals -= UnitTypes.Protoss_Zealot.getMineralPrice();
-				}
-				if(n_minerals < UnitTypes.Protoss_Zealot.getMineralPrice()) {
-					break;
-				}
-			}
-		}
-        dispatchProbes();
-		//mass at least 8 zealots before attacking
-		// '8 zealots' should be a configurable value based on environment
-		//nitpicking on names here, we shouldn't use 'garrison' to describe units being massed for attack
-		//also, this is an all-out attack; I'm changing this to a configurable amount to attack with
-		int minZealotsForAttack = 8;
-		double reserveRatio = 0.2;
-		double lossTolerance = 0.5;
-		double minAdvantage = 0.1;
-		double strengthDisadvantage = -0.15;
-		double strengthBalance = strengthBalance();
-		if (!zealotAttackUnderway && strengthBalance >= minAdvantage) {
-			//this logic leaves some Zealots in reserve
-			allZealots = getZealots();
-			zealotsAttacking = new Unit[(int)(allZealots.length * (1 - reserveRatio))];
-			System.arraycopy(allZealots, 0, zealotsAttacking, 0, (int) (allZealots.length * (1 - reserveRatio)));
-			if (zealotsAttacking.length >= minZealotsForAttack) {
-				//Mass the units
-				massZealots(zealotsAttacking);
-				//I'm guessing that we need to wait until they are actually massed together...
-				// attack move toward an enemy
-				zealotAttackUnderway = zealotAttack(zealotsAttacking);
-			}
-		}
-		else {
-			if(zealots.size() < lossTolerance * zealotsAttacking.length || strengthBalance <= strengthDisadvantage) {
-				//some form of retreat if we are taking on large losses or at a disadvantage
-			}
-			else if (zealotAttackUnderway){
-				//keep attacking if the attack isn't going horribly
-				zealotAttackUnderway = zealotAttack(zealotsAttacking);
-			}
-		}
+
+		//Attack and defence logic here!
 	}
 	@Override
 	public void keyPressed(int keyCode) {}
@@ -580,7 +483,7 @@ public class protossClient implements BWAPIEventListener {
 		List<Unit> best = new ArrayList<Unit>();
 		for (Unit builder : builders){
 			if (n_units == 0){
-				return builders;
+				return best;
 			}
 			if (builder.isIdle()){
 				best.add(builder);
@@ -590,12 +493,14 @@ public class protossClient implements BWAPIEventListener {
 		//Now we don't care if the unit is idle.
 		for (Unit builder : builders){
 			if (n_units == 0){
-				return builders;
+				return best;
 			}
-			best.add(builder);
-			n_units -= 1;
+			if(!best.contains(builder)){
+				best.add(builder);
+				n_units -= 1;
+			}
 		}
-		return builders;
+		return best;
 	}
 
 	private Position getGasLocation(){
@@ -621,12 +526,15 @@ public class protossClient implements BWAPIEventListener {
 	private void setBuilderType(){
 		if (myRaceType == RaceType.RaceTypes.Protoss) {
 			builderType = UnitTypes.Protoss_Probe;
+			supplyType = UnitTypes.Protoss_Pylon;
 		}
 		if (myRaceType == RaceType.RaceTypes.Zerg) {
 			builderType = UnitTypes.Zerg_Drone;
+			supplyType = UnitTypes.Zerg_Overlord;
 		}
 		if (myRaceType == RaceType.RaceTypes.Terran) {
 			builderType = UnitTypes.Terran_SCV;
+			supplyType = UnitTypes.Terran_Supply_Depot;
 		}
 	}
 	private void dispatchProbes(){
@@ -691,36 +599,102 @@ public class protossClient implements BWAPIEventListener {
 			}
 		}
 	}
-	private boolean build(UnitType building, Position basePos){
+
+	/**
+	 *
+	 * @param buildingOrUnit A UnitType to build
+	 * @return code describing success
+	 */
+	private int buildAgnostic(UnitType buildingOrUnit){
+		if (diagnosticMode){
+			System.out.print("Attempting to build a " + buildingOrUnit.getName() + " which is a ");
+		}
+		if (buildingOrUnit.isBuilding()){
+			if (diagnosticMode){
+				System.out.println("building.");
+			}
+			return build(buildingOrUnit);
+		}
+		else{
+			if (diagnosticMode){
+				System.out.println("unit.");
+			}
+			return train(buildingOrUnit);
+		}
+	}
+
+	private int build(UnitType building){
+		return build(building, bwapi.getSelf().getStartLocation());
+	}
+	private int build(UnitType building, Position basePos){
 		Position buildPos = getBuildPosition(basePos, 100, building);
 		try {
-			Unit bestProbe = getBestNUnits(UnitTypes.Protoss_Probe, 1).get(0);
-			if (bwapi.getSelf().getMinerals() >= building.getMineralPrice() && bwapi.getSelf().getGas() > building.getGasPrice()){
+			Unit bestProbe = getBestNUnits(builderType, 1).get(0);
+			if (bwapi.getSelf().getMinerals() >= building.getMineralPrice() && bwapi.getSelf().getGas() >= building.getGasPrice()){
 				bestProbe.build(basePos, building);
-				return true;
+				return SUCCESSFUL;
 			}
 		}
 		catch (IndexOutOfBoundsException e){
 			//No probes exist
-			return false;
+			return REQUISITE_BUILDING_DOES_NOT_EXIST;
 		}
 		//Not enough minerals
-		return false;
+		return mineral_gas_deficit(building);
 	}
-	private boolean train(UnitType unit){
+	private int train(UnitType unit){
 		try {
-			UnitType buildingThatMakes = null; //TODO some way to get this building
+			//this should be the building that constructs this unit.
+			UnitType buildingThatMakes = UnitTypes.getUnitType(unit.getWhatBuildID());
 			Unit bestBuilding = getBestNUnits(buildingThatMakes, 1).get(0);
-			if (bwapi.getSelf().getMinerals() >= unit.getMineralPrice() && bwapi.getSelf().getGas() > unit.getGasPrice()){
+			if (bwapi.getSelf().getMinerals() >= unit.getMineralPrice() && bwapi.getSelf().getGas() >= unit.getGasPrice()){
 				bestBuilding.train(unit);
-				return true;
+				return SUCCESSFUL;
 			}
 		}
 		catch (IndexOutOfBoundsException e) {
 			//No building exists
-			return false;
+			return REQUISITE_BUILDING_DOES_NOT_EXIST;
 		}
-		//Not enough minerals
+		//Not enough minerals and/or gas
+		return mineral_gas_deficit(unit);
+	}
+	private int mineral_gas_deficit(UnitType unitType){
+		int myGas = bwapi.getSelf().getGas();
+		int myMinerals = bwapi.getSelf().getMinerals();
+		int unitMinerals = unitType.getMineralPrice();
+		int unitGas = unitType.getGasPrice();
+		if (myGas < unitGas && myMinerals < unitMinerals){
+			if (diagnosticMode){
+				System.out.println("Not enough gas and minerals to build " + unitType.getName() + ".");
+			}
+			return NOT_ENOUGH_MINERALS_AND_GAS;
+		}
+		if (myGas < unitGas){
+			if (diagnosticMode){
+				System.out.println("Not enough gas to build " + unitType.getName() + ".");
+			}
+			return NOT_ENOUGH_GAS;
+		}
+		else{
+			if (diagnosticMode){
+				System.out.println("Not enough minerals to build " + unitType.getName() + ".");
+			}
+			return NOT_ENOUGH_MINERALS;
+		}
+	}
+
+	/**
+	 * If this needs to be built, then this must be the priority.
+	 * @return
+	 */
+	private boolean buildSupplyIfNeeded(){
+		int supply = bwapi.getSelf().getSupplyUsed();
+		int supplyTotal = bwapi.getSelf().getSupplyTotal();
+		if (supply + 2 > supplyTotal){
+			build(supplyType);
+			return true;
+		}
 		return false;
 	}
 }
