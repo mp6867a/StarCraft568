@@ -104,6 +104,7 @@ public class protossClient implements BWAPIEventListener {
 
 	private int lastState;
 	private int currentCount;
+	//Diagnostic mode provides extra logging information
 	private boolean diagnosticMode;
 
 	/**
@@ -161,7 +162,7 @@ public class protossClient implements BWAPIEventListener {
 
 		buildOrder = new BuildOrder(bwapi.getSelf(), bwapi.getEnemies().iterator().next());
 		determineBuildQuadrants();
-		setBuilderType();
+		 setRaceSpecificUnits();
 	}
 	
 	/**
@@ -173,6 +174,7 @@ public class protossClient implements BWAPIEventListener {
 		// print out some info about any upgrades or research happening
 		// draw the terrain information
 		bwapi.getMap().drawTerrainData(bwapi);
+		//We always need to make sure there are no idle probes.
 		dispatchProbes();
 
 		if(!buildSupplyIfNeeded()){
@@ -241,15 +243,12 @@ public class protossClient implements BWAPIEventListener {
         }
         return count;
     }
-	private Unit[] getZealots() {
-        ArrayList<Unit> zealots = new ArrayList<Unit>();
-		for (Unit unit : bwapi.getMyUnits()) {
-			if (unit.getType() == UnitTypes.Protoss_Zealot){
-				zealots.add(unit);
-			}
-		}
-		return zealots.toArray(new Unit[0]);
-	}
+
+	/**
+	 * Get all units that are idle.
+	 * TODO remove this method. It serves no purpose.
+	 * @return An array of idle units.
+	 */
 	private Unit[] idleUnits()
 	{
 		ArrayList<Unit> idleUnitsList = new ArrayList<Unit>();
@@ -260,56 +259,6 @@ public class protossClient implements BWAPIEventListener {
 		}
 		return idleUnitsList.toArray(new Unit[0]);
     }
-
-	private void massZealots(Unit[] zealotsArray) {
-		//get the first zealots position
-		Position basePosition = zealotsArray[0].getPosition();
-		for (Unit zealot : zealotsArray) {
-			//move to base location
-		}
-	}
-
-	/**
-	have our zealots attack the FIRST unit in the stack.
-	Returns if the zealots are actually attacking an enemy.
-	Maybe we should calculate the nearest enemy to attack?
-	*/
-	private boolean zealotAttack(Unit[] zealotArray) {
-		boolean attackMoveMade = false;
-        //all should attack the most vulnerable enemy
-        //maybe should look for closest?
-        Unit enemyToAttack = getMostVulnerableEnemy();
-		for (Unit unit : zealotArray) {
-
-			if (unit.getType() == UnitTypes.Protoss_Zealot) {
-                if (unit.isAttacking() || unit.isMoving()){
-                    //either the unit is attacking or moving (could be rallying) and no action should be taken
-                    attackMoveMade = true;
-                    continue;
-                }
-                if (enemyToAttack != null) {
-					unit.attack(enemyToAttack.getPosition(), false);
-					attackMoveMade = true;
-				}
-			}
-		}
-		return attackMoveMade;
-	}
-
-	private boolean destroyEnemyBuildings() {
-		boolean attackMoveMade = false;
-		for (Unit unit : idleUnits()) {
-			if (unit.getType() == UnitTypes.Protoss_Zealot) {
-				//some logic to check if 'unit' is a building
-				for (Unit enemy : bwapi.getEnemyUnits()) {
-					unit.attack(enemy.getPosition(), false);
-					attackMoveMade = true;
-					break;
-				}
-			}
-		}
-		return attackMoveMade;
-	}
 
 	private double getEnemyHealth(){
 		double strength = 0.0;
@@ -349,6 +298,12 @@ public class protossClient implements BWAPIEventListener {
 		}
 		return strength;
 	}
+
+	/**
+	 * How dangerous is a given Unit.
+	 * @param unit A Unit's danger level to be evaluated.
+	 * @return A double describing how dangerous a unit is.
+	 */
 	private double scoreUnitAttackThreat(Unit unit)
 	{
 		UnitType thisUnitType = unit.getType();
@@ -362,6 +317,12 @@ public class protossClient implements BWAPIEventListener {
 		return baseAttack * allMods;
 	}
 
+	/**
+	 * A scoring mechanism to determine the balance of power on the map.
+	 * Postive scores favor self. Negative scores favor enemy. Scores are magnitudinal (the farther from zero,
+	 * the more unbalanced the game).
+	 * @return A floating point number describing the relative power in the map.
+	 */
 	private double strengthBalance()
 	{
 		double myStrength = getSelfAttackStrength();
@@ -398,12 +359,24 @@ public class protossClient implements BWAPIEventListener {
         return enemyUnits.size() == 0 ? null : enemyUnits.get(minIndex);
     }
 
+	/**
+	 * Tests if the given position is on the grid.
+	 * @param test The position being tested if it is on the grid.
+	 * @return A boolean describing if 'test' is on the map.
+	 */
     private boolean onGrid(Position test){
 		int testY = test.getPY();
 		int testX = test.getPX();
 		return testY >= 0 && testX >= 0 && testY < bwapi.getMap().getSize().getPY() && testX < bwapi.getMap().getSize().getPX();
 	}
 
+	/**
+	 * Finds a good place to put a building given a staring position and reading off of the best grids.
+	 * @param base The starting position of this search.
+	 * @param offsetFromCenter How far to search the grid.
+	 * @param type The type of unit being built.
+	 * @return
+	 */
     private Position getBuildPosition(Position base, int offsetFromCenter, UnitType type){
 		int max = 1000;
 		boolean nullDiagnostic = true;
@@ -423,6 +396,11 @@ public class protossClient implements BWAPIEventListener {
 		return null;
 	}
 
+	/**
+	 * Get all of your units of a given type.
+	 * @param unitTypeSought the UnitType of Units sought.
+	 * @return
+	 */
 	private List<Unit> getUnitsOfType(UnitType unitTypeSought){
 		List<Unit> unitsOfTypeSought = new ArrayList<Unit>();
 		for(Unit unit: bwapi.getMyUnits()){
@@ -433,6 +411,11 @@ public class protossClient implements BWAPIEventListener {
 		return unitsOfTypeSought;
 	}
 
+	/**
+	 * Build a gas field
+	 * @param refinery the race specific refinery
+	 * @return the success state
+	 */
 	private int buildGasField(UnitType refinery){
 		gasFieldPos = getGasLocation();
 		try {
@@ -446,6 +429,9 @@ public class protossClient implements BWAPIEventListener {
 		}
 	}
 
+	/**
+	 * Move a worker to gather gas. First look for idle workers, then only workers not already gathering gas.
+	 */
 	private void dispatchToGasField(){
 		Unit geyser = getUnitsOfType(UnitTypes.Protoss_Assimilator).get(0);
 		List<Unit> builders = getBestNUnits(builderType, 1);
@@ -487,6 +473,10 @@ public class protossClient implements BWAPIEventListener {
 		return best;
 	}
 
+	/**
+	 * Find the nearest gas field to your base location.
+	 * @return The nearest gas field's Tile Position (can be used to build a refinery).
+	 */
 	private Position getGasLocation(){
 		List<Unit> geysers = new ArrayList<Unit>();
 		List<Integer> distances = new ArrayList<Integer>();
@@ -507,7 +497,13 @@ public class protossClient implements BWAPIEventListener {
 		}
 		return geysers.get(minIndex).getTilePosition();
 	}
-	private void setBuilderType(){
+
+	/**
+	 * Method to determine race specific units
+	 * Supply and Builders are included.
+	 * Could expand into other units in future.
+	 */
+	private void setRaceSpecificUnits(){
 		if (myRaceType == RaceType.RaceTypes.Protoss) {
 			builderType = UnitTypes.Protoss_Probe;
 			supplyType = UnitTypes.Protoss_Pylon;
@@ -521,6 +517,11 @@ public class protossClient implements BWAPIEventListener {
 			supplyType = UnitTypes.Terran_Supply_Depot;
 		}
 	}
+
+	/**
+	 * Delegates workers to gather minerals if they are not doing anything. Also ensures a certain number of workers are
+	 * gathering gas if it is possible
+	 */
 	private void dispatchProbes(){
 		List<Unit> probes = getUnitsOfType(builderType);
 		List<Unit> minerals = bwapi.getNeutralUnits();
@@ -559,6 +560,9 @@ public class protossClient implements BWAPIEventListener {
 		}
 	}
 
+	/**
+	 * Internal method to eliminate population counts.
+	 */
 	private void wipePopulations(){
 		zealots = new ArrayList<Unit>();
 		gateways = new ArrayList<Unit>();
@@ -566,6 +570,9 @@ public class protossClient implements BWAPIEventListener {
 		nexus = new ArrayList<Unit>();
 	}
 
+	/**
+	 * Some UnitTypes will be cached to save on computation.
+	 */
 	private void countPopulation(){
 		wipePopulations();
 		for (Unit unit : bwapi.getMyUnits()){
@@ -585,7 +592,7 @@ public class protossClient implements BWAPIEventListener {
 	}
 
 	/**
-	 *
+	 * Builds a unit or a building.
 	 * @param buildingOrUnit A UnitType to build
 	 * @return code describing success
 	 */
@@ -607,9 +614,24 @@ public class protossClient implements BWAPIEventListener {
 		}
 	}
 
+	/**
+	 * Build a building without providing a position.
+	 * @param building
+	 * @return
+	 */
 	private int build(UnitType building){
 		return build(building, bwapi.getSelf().getStartLocation());
 	}
+
+	/**
+	 * Build a building with a start position
+	 * TODO pull pyPos logic out of this method
+	 * Currently only Pylons are considered to be availible for basePos.
+	 * Otherwise position is overwritten with the position of the last pylon placed.
+	 * @param building
+	 * @param basePos
+	 * @return
+	 */
 	private int build(UnitType building, Position basePos){
 		Position buildPos;
 		try {
@@ -646,6 +668,12 @@ public class protossClient implements BWAPIEventListener {
 		//Not enough minerals
 		return mineral_gas_deficit(building);
 	}
+
+	/**
+	 * Given a UnitType, train it.
+	 * @param unit The UnitType to build.
+	 * @return the success state of the training.
+	 */
 	private int train(UnitType unit){
 
 		UnitType buildingThatMakes = UnitTypes.getUnitType(unit.getWhatBuildID());
@@ -665,6 +693,12 @@ public class protossClient implements BWAPIEventListener {
 		//Not enough minerals and/or gas
 		return mineral_gas_deficit(unit);
 	}
+
+	/**
+	 * Determine what resources is in deficit.
+	 * @param unitType The type of Unit attempted to be built or trained.
+	 * @return Code describing the deficit.
+	 */
 	private int mineral_gas_deficit(UnitType unitType){
 		int myGas = bwapi.getSelf().getGas();
 		int myMinerals = bwapi.getSelf().getMinerals();
@@ -691,7 +725,7 @@ public class protossClient implements BWAPIEventListener {
 	}
 
 	/**
-	 * If this needs to be built, then this must be the priority.
+	 * If this supply is running low, the build order is overriden and a supply unit is built.
 	 * @return
 	 */
 	private boolean buildSupplyIfNeeded(){
@@ -704,6 +738,11 @@ public class protossClient implements BWAPIEventListener {
 		return false;
 	}
 
+	/**
+	 * Find the half of the map closest to the center from your base location.
+	 * Used to place buildings in a more logical area (hopefully away from minerals too)..
+	 * TODO Ensure that buildings are not placed in the path between mineral fields and geysers.
+	 */
 	private void determineBuildQuadrants(){
 		Position base = bwapi.getSelf().getStartLocation();
 		buildQuadrants = new ArrayList<Integer>();
@@ -732,6 +771,14 @@ public class protossClient implements BWAPIEventListener {
 			buildQuadrants.add(5);
 		}
 	}
+
+	/**
+	 * Get a position from the quadrants that have been selected as good relative to the center of the map.
+	 * @param base The starting position.
+	 * @param x_off Displacement in the X direction.
+	 * @param y_off Displacement in the Y direction.
+	 * @return
+	 */
 	private List<Position> inBuildQuadrants(Position base, int x_off, int y_off){
 		List<Position> positions = new ArrayList<Position>();
 		int index = 1;
@@ -762,6 +809,11 @@ public class protossClient implements BWAPIEventListener {
 		return positions;
 	}
 
+	/**
+	 * Determines how far a point is from the edge of the map.
+	 * @param coordinate The position of which we are seeking its distance to the edge of the map.
+	 * @return The number of pixels from 'coordinate' to the nearest edge.
+	 */
 	private int getDistanceToEdge(Position coordinate){
 		int distanceToEdgeMinX = coordinate.getPX();
 		int distanceToEdgeMaxX = bwapi.getMap().getSize().getPX() - coordinate.getPX();
