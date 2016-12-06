@@ -178,14 +178,19 @@ public class protossClient implements BWAPIEventListener {
 		dispatchProbes();
 
 		if(!buildSupplyIfNeeded()){
-			if (lastState == SUCCESSFUL || lastState == REQUISITE_BUILDING_DOES_NOT_EXIST || lastState == NO_SUITABLE_BUILD_LOCATION) {
+			if (lastState == SUCCESSFUL || lastState == REQUISITE_BUILDING_DOES_NOT_EXIST ||
+					lastState == NO_SUITABLE_BUILD_LOCATION) {
 				//If the build was successful, but it was a building, then we must check if building has actually started!
-				if (lastState == REQUISITE_BUILDING_DOES_NOT_EXIST || !unitTypeUnderConstruction.isBuilding() || getUnitsOfType(unitTypeUnderConstruction).size() != currentCount){
+				if (lastState == REQUISITE_BUILDING_DOES_NOT_EXIST || lastState == NO_SUITABLE_BUILD_LOCATION ||
+						!unitTypeUnderConstruction.isBuilding() ||
+						getUnitsOfType(unitTypeUnderConstruction).size() != currentCount){
 					unitTypeUnderConstruction = buildOrder.getNextBuild();
 					currentCount = getUnitsOfType(unitTypeUnderConstruction).size();
 					lastState = buildAgnostic(unitTypeUnderConstruction);
 				}
 				else{
+
+					//lastState = buildAgnostic(unitTypeUnderConstruction);
 				}
 			}
 			else{
@@ -434,9 +439,8 @@ public class protossClient implements BWAPIEventListener {
 	 */
 	private void dispatchToGasField(){
 		Unit geyser = getUnitsOfType(UnitTypes.Protoss_Assimilator).get(0);
-		List<Unit> builders = getBestNUnits(builderType, 1);
-		for (Unit builder : builders) {
-			if (!builder.isGatheringGas()){
+		for (Unit builder : getUnitsOfType(builderType)) {
+			if ((builder.isIdle() && builder != poolDrone) || builder.isGatheringMinerals()){
 				builder.gather(geyser, false);
 				return;
 			}
@@ -543,7 +547,7 @@ public class protossClient implements BWAPIEventListener {
 				mineralGatherers += 1;
 				doingSomething = true;
 			}
-			if (!doingSomething && (!builder.isMoving() && builder.isIdle())){
+			if (!doingSomething && (!builder.isMoving() && builder.isIdle() && builder != poolDrone)){
 				for (Unit mineral : minerals){
 					if(mineral.getType() == UnitTypes.Resource_Mineral_Field && (builder.getDistance(mineral) < 300 || mineral.getDistance(builder) < 300)) {
 						builder.gather(mineral, false);
@@ -637,6 +641,9 @@ public class protossClient implements BWAPIEventListener {
 		try {
 			Unit bestProbe = getBestNUnits(builderType, 1).get(0);
 			if (bwapi.getSelf().getMinerals() >= building.getMineralPrice() && bwapi.getSelf().getGas() >= building.getGasPrice()){
+				if (UnitTypes.Protoss_Robotics_Facility == building){
+					System.out.println("Building robo.");
+				}
 				if(building.isRefinery()){
 					return buildGasField(building);
 				}
@@ -654,6 +661,7 @@ public class protossClient implements BWAPIEventListener {
 				}
 				if(buildPos != null) {
 					bestProbe.build(buildPos, building);
+					poolDrone = bestProbe;
 					if (building == UnitTypes.Protoss_Pylon){
 						pyPos = buildPos;
 					}
