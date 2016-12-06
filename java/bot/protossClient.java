@@ -547,9 +547,9 @@ public class protossClient implements BWAPIEventListener {
 				mineralGatherers += 1;
 				doingSomething = true;
 			}
-			if (!doingSomething && (!builder.isMoving() && builder.isIdle() && builder != poolDrone)){
+			if (!doingSomething && builder != poolDrone){
 				for (Unit mineral : minerals){
-					if(mineral.getType() == UnitTypes.Resource_Mineral_Field && (builder.getDistance(mineral) < 300 || mineral.getDistance(builder) < 300)) {
+					if(mineral.getType() == UnitTypes.Resource_Mineral_Field && (builder.getDistance(mineral) < 300 || mineral.getDistance(bwapi.getSelf().getStartLocation()) < 300)) {
 						builder.gather(mineral, false);
 					}
 				}
@@ -624,6 +624,10 @@ public class protossClient implements BWAPIEventListener {
 	 * @return
 	 */
 	private int build(UnitType building){
+		if (poolDrone == null || !poolDrone.isExists())
+		{
+			poolDrone = getBestNUnits(builderType, 1).get(0);
+		}
 		return build(building, bwapi.getSelf().getStartLocation());
 	}
 
@@ -660,8 +664,7 @@ public class protossClient implements BWAPIEventListener {
 					bwapi.drawLine(bestProbe.getPosition(), buildPos, BWColor.White, false);
 				}
 				if(buildPos != null) {
-					bestProbe.build(buildPos, building);
-					poolDrone = bestProbe;
+					poolDrone.build(buildPos, building);
 					if (building == UnitTypes.Protoss_Pylon){
 						pyPos = buildPos;
 					}
@@ -836,5 +839,20 @@ public class protossClient implements BWAPIEventListener {
 			}
 		}
 		return true;
+	}
+
+	private void isWarped(){
+		if (myRaceType == RaceType.RaceTypes.Protoss){
+			for (Unit building : bwapi.getMyUnits()){
+				if (building.getType().isBuilding() && building.getType() != UnitTypes.Protoss_Nexus && building.getType() != UnitTypes.Protoss_Assimilator){
+					if (building.isUnpowered()){
+						if(!poolDrone.isConstructing()) {
+							build(UnitTypes.Protoss_Pylon, building.getPosition());
+							return;
+						}
+					}
+				}
+			}
+		}
 	}
 }
