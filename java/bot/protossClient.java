@@ -82,16 +82,14 @@ public class protossClient implements BWAPIEventListener {
 	private RaceType enemyRaceType;
 	private UnitType builderType;
 	private UnitType supplyType;
-	private int gasTrigger;
 	private int gasCollecters;
-	private boolean gasFieldBuilt;
-	private boolean gatheringGas;
-	private boolean gasFieldShouldBeBuilt;
-
+	private boolean waitTilStarted;
 	private List<Unit> gateways;
 	private List<Unit> probes;
 	private List<Unit> zealots;
 	private List<Unit> nexus;
+
+	private List<Integer> buildQuadrants;
 
 	private BuildOrder buildOrder;
 
@@ -102,9 +100,10 @@ public class protossClient implements BWAPIEventListener {
 	public static final int NOT_ENOUGH_GAS = 2;
 	public static final int NOT_ENOUGH_MINERALS_AND_GAS = 3;
 	public static final int REQUISITE_BUILDING_DOES_NOT_EXIST = 4;
+	public static final int NO_SUITABLE_BUILD_LOCATION = 5;
 
 	private int lastState;
-
+	private int currentCount;
 	private boolean diagnosticMode;
 
 	/**
@@ -150,11 +149,10 @@ public class protossClient implements BWAPIEventListener {
 		myRaceType = bwapi.getSelf().getRace();
 		supplyCap = 0;
 		gasCollecters = 2;
-		gasTrigger = 7;
-		gasFieldBuilt = false;
-		gasFieldShouldBeBuilt = false;
-		gatheringGas = false;
-		lastState = SUCCESSFUL;
+		currentCount = -1;
+		//Something that cannot be the first unit to be built.
+		unitTypeUnderConstruction = UnitTypes.Terran_Nuclear_Silo;
+		lastState = REQUISITE_BUILDING_DOES_NOT_EXIST;
 
 		probes = new ArrayList<Unit>();
 		gateways = new ArrayList<Unit>();
@@ -162,7 +160,7 @@ public class protossClient implements BWAPIEventListener {
 		nexus = new ArrayList<Unit>();
 
 		buildOrder = new BuildOrder(bwapi.getSelf(), bwapi.getEnemies().iterator().next());
-
+		determineBuildQuadrants();
 		setBuilderType();
 	}
 	
@@ -176,32 +174,24 @@ public class protossClient implements BWAPIEventListener {
 		// draw the terrain information
 		bwapi.getMap().drawTerrainData(bwapi);
 		dispatchProbes();
-		//Building gas fields is to be handled outside of Build Order
-		if (gasFieldShouldBeBuilt || (bwapi.getSelf().getMinerals() >= UnitTypes.Protoss_Assimilator.getMineralPrice() && !gasFieldBuilt)) {
-			if (getUnitsOfType(UnitTypes.Protoss_Assimilator).size() == 0){
-				gasFieldShouldBeBuilt = true;
-			}
-			else{
-				gasFieldShouldBeBuilt = false;
-			}
-			buildGasField();
-			gasFieldBuilt = true;
-		}
-		else if (gasFieldBuilt && !gasFieldShouldBeBuilt){
-			//check if a supply unit is needed.
-			if(!buildSupplyIfNeeded()){
-				if (lastState == SUCCESSFUL || lastState == REQUISITE_BUILDING_DOES_NOT_EXIST) {
+
+		if(!buildSupplyIfNeeded()){
+			if (lastState == SUCCESSFUL || lastState == REQUISITE_BUILDING_DOES_NOT_EXIST || lastState == NO_SUITABLE_BUILD_LOCATION) {
+				//If the build was successful, but it was a building, then we must check if building has actually started!
+				if (lastState == REQUISITE_BUILDING_DOES_NOT_EXIST || !unitTypeUnderConstruction.isBuilding() || getUnitsOfType(unitTypeUnderConstruction).size() != currentCount){
 					unitTypeUnderConstruction = buildOrder.getNextBuild();
+					currentCount = getUnitsOfType(unitTypeUnderConstruction).size();
 					lastState = buildAgnostic(unitTypeUnderConstruction);
 				}
 				else{
-					//There is a deficit in gas or minerals... try to build again
-					//This block could include logic on rearranging workers to fetch the resource in need.
-					lastState = buildAgnostic(unitTypeUnderConstruction);
 				}
 			}
-		}
+			else{
+				//we lacked the minerals or gas on the last try... try again...
+				lastState = buildAgnostic(unitTypeUnderConstruction);
+			}
 
+		}
 		//Attack and defence logic here!
 	}
 	@Override
@@ -407,38 +397,30 @@ public class protossClient implements BWAPIEventListener {
         }
         return enemyUnits.size() == 0 ? null : enemyUnits.get(minIndex);
     }
+
+    private boolean onGrid(Position test){
+		int testY = test.getPY();
+		int testX = test.getPX();
+		return testY >= 0 && testX >= 0 && testY < bwapi.getMap().getSize().getPY() && testX < bwapi.getMap().getSize().getPX();
+	}
+
     private Position getBuildPosition(Position base, int offsetFromCenter, UnitType type){
-		Position buildArea= new Position(base.getPX()+offsetFromCenter,base.getPY());
-		if(bwapi.canBuildHere(buildArea, type, true) == false){
-			buildArea= new Position(base.getPX()-offsetFromCenter,base.getPY());
-			if(bwapi.canBuildHere(buildArea, type, true) == false){
-				buildArea= new Position(base.getPX(),base.getPY()+offsetFromCenter);
-				if(bwapi.canBuildHere(buildArea, type, true) == false){
-					buildArea= new Position(base.getPX(),base.getPY()-offsetFromCenter);
-					if(bwapi.canBuildHere(buildArea, type, true) == false){
-						buildArea= new Position(base.getPX()-offsetFromCenter,base.getPY()+offsetFromCenter);
-						if(bwapi.canBuildHere(buildArea, type, true) == false){
-							buildArea= new Position(base.getPX()-offsetFromCenter,base.getPY()+offsetFromCenter);
-							if(bwapi.canBuildHere(buildArea, type, true) == false){
-								buildArea= new Position(base.getPX()+offsetFromCenter,base.getPY()-offsetFromCenter);
-								if(bwapi.canBuildHere(buildArea, type, true) == false) {
-									buildArea= new Position(base.getPX()+offsetFromCenter,base.getPY()+offsetFromCenter);
-									if(bwapi.canBuildHere(buildArea, type, true) == false){
-										if (offsetFromCenter > 1000){
-											//prevent an endless recursion
-											return null;
-										}
-										buildArea = getBuildPosition(base, (int)(offsetFromCenter * 1.1), type);
-									}
-								}
-							}
+		int max = 1000;
+		boolean nullDiagnostic = true;
+		int newX, newY;
+		bwapi.drawCircle(base, 50,  BWColor.Black, false, false);
+		for (int x_off = 0; x_off <= max; x_off += (int)((max - offsetFromCenter) / 50)){
+			for (int y_off = 0; y_off <= x_off; y_off += (int)((max - offsetFromCenter) / 50)){
+				for (Position buildArea : inBuildQuadrants(base, x_off, x_off)) {
+					if (onGrid(buildArea)) {
+						if (bwapi.canBuildHere(buildArea, type, true)) {
+							return buildArea;
 						}
 					}
 				}
 			}
 		}
-
-		return buildArea;
+		return null;
 	}
 
 	private List<Unit> getUnitsOfType(UnitType unitTypeSought){
@@ -451,15 +433,17 @@ public class protossClient implements BWAPIEventListener {
 		return unitsOfTypeSought;
 	}
 
-	private void buildGasField(){
+	private int buildGasField(UnitType refinery){
 		gasFieldPos = getGasLocation();
 		try {
-			getBestNUnits(builderType, 1).get(0).build(gasFieldPos, UnitTypes.Protoss_Assimilator);
+			Unit bestProbe = getBestNUnits(builderType, 1).get(0);
+			bestProbe.build(gasFieldPos, refinery);
+			return SUCCESSFUL;
 		}
 		catch (IndexOutOfBoundsException e){
 			System.out.println("No builders exist!");
+			return REQUISITE_BUILDING_DOES_NOT_EXIST;
 		}
-
 	}
 
 	private void dispatchToGasField(){
@@ -495,7 +479,7 @@ public class protossClient implements BWAPIEventListener {
 			if (n_units == 0){
 				return best;
 			}
-			if(!best.contains(builder)){
+			if(!best.contains(builder) && !builder.isConstructing()){
 				best.add(builder);
 				n_units -= 1;
 			}
@@ -558,9 +542,9 @@ public class protossClient implements BWAPIEventListener {
 				mineralGatherers += 1;
 				doingSomething = true;
 			}
-			if (!doingSomething){
+			if (!doingSomething && (!builder.isMoving() && builder.isIdle())){
 				for (Unit mineral : minerals){
-					if(mineral.getType() == UnitTypes.Resource_Mineral_Field && builder.getDistance(mineral) < 300) {
+					if(mineral.getType() == UnitTypes.Resource_Mineral_Field && (builder.getDistance(mineral) < 300 || mineral.getDistance(builder) < 300)) {
 						builder.gather(mineral, false);
 					}
 				}
@@ -627,12 +611,32 @@ public class protossClient implements BWAPIEventListener {
 		return build(building, bwapi.getSelf().getStartLocation());
 	}
 	private int build(UnitType building, Position basePos){
-		Position buildPos = getBuildPosition(basePos, 100, building);
+		Position buildPos;
 		try {
 			Unit bestProbe = getBestNUnits(builderType, 1).get(0);
 			if (bwapi.getSelf().getMinerals() >= building.getMineralPrice() && bwapi.getSelf().getGas() >= building.getGasPrice()){
-				bestProbe.build(basePos, building);
-				return SUCCESSFUL;
+				if(building.isRefinery()){
+					return buildGasField(building);
+				}
+				if (myRaceType == RaceType.RaceTypes.Protoss && building != UnitTypes.Protoss_Pylon){
+					buildPos = getBuildPosition(pyPos, 0, building);
+				}
+				else {
+					buildPos = getBuildPosition(basePos, 0, building);
+				}
+				if (buildPos == null){
+					return NO_SUITABLE_BUILD_LOCATION;
+				}
+				if(diagnosticMode){
+					bwapi.drawLine(bestProbe.getPosition(), buildPos, BWColor.White, false);
+				}
+				if(buildPos != null) {
+					bestProbe.build(buildPos, building);
+					if (building == UnitTypes.Protoss_Pylon){
+						pyPos = buildPos;
+					}
+					return SUCCESSFUL;
+				}
 			}
 		}
 		catch (IndexOutOfBoundsException e){
@@ -643,9 +647,10 @@ public class protossClient implements BWAPIEventListener {
 		return mineral_gas_deficit(building);
 	}
 	private int train(UnitType unit){
+
+		UnitType buildingThatMakes = UnitTypes.getUnitType(unit.getWhatBuildID());
 		try {
 			//this should be the building that constructs this unit.
-			UnitType buildingThatMakes = UnitTypes.getUnitType(unit.getWhatBuildID());
 			Unit bestBuilding = getBestNUnits(buildingThatMakes, 1).get(0);
 			if (bwapi.getSelf().getMinerals() >= unit.getMineralPrice() && bwapi.getSelf().getGas() >= unit.getGasPrice()){
 				bestBuilding.train(unit);
@@ -654,6 +659,7 @@ public class protossClient implements BWAPIEventListener {
 		}
 		catch (IndexOutOfBoundsException e) {
 			//No building exists
+			System.out.println("Unable to build " +  unit.getName() + " as there is no " + buildingThatMakes + ".");
 			return REQUISITE_BUILDING_DOES_NOT_EXIST;
 		}
 		//Not enough minerals and/or gas
@@ -697,4 +703,71 @@ public class protossClient implements BWAPIEventListener {
 		}
 		return false;
 	}
+
+	private void determineBuildQuadrants(){
+		Position base = bwapi.getSelf().getStartLocation();
+		buildQuadrants = new ArrayList<Integer>();
+		if (getDistanceToEdge(new Position(base.getPX() - 1, base.getPY() + 1)) > getDistanceToEdge(new Position(base.getPX() + 1, base.getPY() - 1))){
+			buildQuadrants.add(1);
+		}
+		else{
+			buildQuadrants.add(8);
+		}
+		if (getDistanceToEdge(new Position(base.getPX() - 0, base.getPY() + 1)) > getDistanceToEdge(new Position(base.getPX() + 0, base.getPY() - 1))){
+			buildQuadrants.add(2);
+		}
+		else{
+			buildQuadrants.add(7);
+		}
+		if (getDistanceToEdge(new Position(base.getPX() + 1, base.getPY() + 1)) > getDistanceToEdge(new Position(base.getPX() - 1, base.getPY() - 1))){
+			buildQuadrants.add(3);
+		}
+		else{
+			buildQuadrants.add(6);
+		}
+		if (getDistanceToEdge(new Position(base.getPX() - 1, base.getPY() + 0)) > getDistanceToEdge(new Position(base.getPX() + 1, base.getPY() - 0))){
+			buildQuadrants.add(4);
+		}
+		else{
+			buildQuadrants.add(5);
+		}
+	}
+	private List<Position> inBuildQuadrants(Position base, int x_off, int y_off){
+		List<Position> positions = new ArrayList<Position>();
+		int index = 1;
+		if (buildQuadrants.contains(index++)){
+			positions.add(new Position(base.getPX() - x_off, base.getPY() + y_off));
+		}
+		if (buildQuadrants.contains(index++)){
+			positions.add(new Position(base.getPX(), base.getPY() + y_off));
+		}
+		if (buildQuadrants.contains(index++)){
+			positions.add(new Position(base.getPX() + x_off, base.getPY() + y_off));
+		}
+		if (buildQuadrants.contains(index++)){
+			positions.add(new Position(base.getPX() - x_off, base.getPY() - y_off));
+		}
+		if (buildQuadrants.contains(index++)){
+			positions.add(new Position(base.getPX(), base.getPY() + y_off));
+		}
+		if (buildQuadrants.contains(index++)){
+			positions.add(new Position(base.getPX() - x_off, base.getPY() - y_off));
+		}
+		if (buildQuadrants.contains(index++)){
+			positions.add(new Position(base.getPX(), base.getPY() - y_off));
+		}
+		if (buildQuadrants.contains(index++)){
+			positions.add(new Position(base.getPX() + x_off, base.getPY() - y_off));
+		}
+		return positions;
+	}
+
+	private int getDistanceToEdge(Position coordinate){
+		int distanceToEdgeMinX = coordinate.getPX();
+		int distanceToEdgeMaxX = bwapi.getMap().getSize().getPX() - coordinate.getPX();
+		int distanceToEdgeMinY = coordinate.getPY();
+		int distanceToEdgeMaxY = bwapi.getMap().getSize().getPY() - coordinate.getPY();
+		return Math.min(Math.min(distanceToEdgeMinX, distanceToEdgeMaxX), Math.min(distanceToEdgeMinY, distanceToEdgeMaxY));
+	}
+
 }

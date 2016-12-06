@@ -141,9 +141,7 @@ public class BuildOrder {
                 myBuildOrderIntraStep = 0;
                 myBuildOrderInterStep += 1;
             }
-            else{
-                myBuildOrderIntraStep += 1;
-            }
+            myBuildOrderIntraStep += 1;
             if (myBuildOrderInterStep >= myBuildOrder.size()){
                 System.out.println("Your explicit build order has been exhausted.");
                 toDefault = true;
@@ -155,7 +153,7 @@ public class BuildOrder {
             if (myBuildOrderDefaultIntraStep == myBuildOrderDefaultQuantities.get(myBuildOrderDefaultInterStep)){
                 myBuildOrderDefaultIntraStep = 0;
                 myBuildOrderDefaultInterStep += 1;
-                myBuildOrderDefaultIntraStep %= myBuildOrderDefault.size();
+                myBuildOrderDefaultInterStep %= myBuildOrderDefault.size();
             }
             else{
                 myBuildOrderDefaultIntraStep += 1;
