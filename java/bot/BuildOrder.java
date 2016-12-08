@@ -88,7 +88,11 @@ public class BuildOrder {
     }
     public void createBuildOrder(){
         //read from text file
+
+        //added alternate path strucutre for VM - cz windows xp...
+        //String filepath = "C:\\JNIBWAPI_1.0_r71\\StarCraft568\\java\\BuildOrders\\" + myRace.getName().toLowerCase() + "\\" +enemyRace.getName().toLowerCase() + "\\buildorder.txt";
         String filepath = "src/java/BuildOrders/" + myRace.getName().toLowerCase() + "/" +enemyRace.getName().toLowerCase() + "/buildorder.txt";
+
         String[] tempLine = new String[2];
         try {
             FileReader fileReader = new FileReader(filepath);

@@ -144,6 +144,11 @@ public class ExampleAIClient implements BWAPIEventListener {
 				}
 			}
 		}
+
+		for( Unit unit : bwapi.getEnemyUnits()){
+
+
+		}
 		
 		// build a spawning pool
 		if (bwapi.getSelf().getMinerals() >= 200 && poolDrone == null) {
