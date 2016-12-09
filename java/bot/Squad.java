@@ -106,11 +106,23 @@ public class Squad {
     }
 
     /**
+     * Determines if a squad is under attack or not.
+     * @return
+     */
+    public boolean isAvailable(){
+        for (int i = 0; i < n_members; i++){
+            if (members[i].isAttacking() || members[i].isUnderAttack()){
+                return false;
+            }
+        }
+        return true;
+    }
+    /**
      * Massed attack on enemy unit
      * @param enemy The unit which is to be assaulted
      * @return A boolean describing if attack orders have been issued.
      */
-    private boolean attack(Unit enemy){
+    public boolean attack(Unit enemy){
         return attack(enemy, false);
     }
 
@@ -122,7 +134,6 @@ public class Squad {
      * @return A boolean describing whether the attack order has been issued.
      */
     public boolean attack(Unit enemy, boolean overrideClose){
-        int limit = 500;
         if (overrideClose || isClose()){
             for (Unit member : members){
                 member.attack(enemy.getPosition(), false);
@@ -136,7 +147,7 @@ public class Squad {
     }
 
     /**
-     * Determines
+     * Determines whether a squad is sufficiently close to one another
      * @return
      */
     private boolean isClose(){
