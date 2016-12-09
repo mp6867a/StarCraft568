@@ -48,6 +48,18 @@ public class Squad {
         if (anyDead) {
             compress();
         }
+        //if any member is under attack, move all of those units to that member
+        for (int i = 0; i < n_members; i++){
+            if (members[i].isUnderAttack()){
+                for(int j = 0; j < n_members; j++) {
+                    if (j != i && !members[j].isUnderAttack()) {
+                        members[j].move(members[i].getPosition(), false);
+                    }
+                }
+                return n_members;
+            }
+        }
+
         return n_members;
     }
 
@@ -91,6 +103,52 @@ public class Squad {
         for (int i = 0; i < n_members; i++){
             members[i].move(destination, false);
         }
+    }
+
+    /**
+     * Massed attack on enemy unit
+     * @param enemy The unit which is to be assaulted
+     * @return A boolean describing if attack orders have been issued.
+     */
+    private boolean attack(Unit enemy){
+        return attack(enemy, false);
+    }
+
+    /**
+     * Massed attack on an enemy unit. Can override
+     * the requirement to be close if in an emergency situation.
+     * @param enemy The Unit that the attack order is to be issued against.
+     * @param overrideClose A boolean to override the need to be close.
+     * @return A boolean describing whether the attack order has been issued.
+     */
+    public boolean attack(Unit enemy, boolean overrideClose){
+        int limit = 500;
+        if (overrideClose || isClose()){
+            for (Unit member : members){
+                member.attack(enemy.getPosition(), false);
+            }
+            return true;
+        }
+        else{
+            rallyToLeader();
+            return false;
+        }
+    }
+
+    /**
+     * Determines
+     * @return
+     */
+    private boolean isClose(){
+        int limit = 500; //some n that is the maximum two units can be apart from another
+        for (int member_a = 0; member_a < n_members - 1; member_a++){
+            for(int member_b = member_a + 1; member_b < n_members; member_b++){
+                if (members[member_a].getDistance(members[member_b].getPosition()) < limit){
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     /**
