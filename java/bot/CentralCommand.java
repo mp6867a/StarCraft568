@@ -1,7 +1,5 @@
 package bot;
 
-import bot.Squad;
-
 import java.util.ArrayList;
 import java.util.List;
 import jnibwapi.Unit;
@@ -13,6 +11,31 @@ public class CentralCommand {
         squads = new ArrayList<Squad>();
     }
 
+    /**
+     * Issue refresh command to all squads
+     */
+    public void refresh(){
+        for (Squad squad : squads){
+            squad.refresh();
+        }
+    }
+    public boolean attack(Unit enemy, int n_squads){
+        return attack(enemy, n_squads, false);
+    }
+    public boolean attack(Unit enemy, int n_squads, boolean override){
+        int engaged = 0;
+        //could be improved by selecting the nearest n free squads
+        for (Squad squad : squads){
+            if (squad.isAvailable()){
+                squad.attack(enemy);
+                engaged += 1;
+                if (engaged == n_squads){
+                    return true;
+                }
+            }
+        }
+        return engaged > 0;
+    }
     /**
      * Add a Squad to the Command.
      * @param squadToAdd
@@ -29,8 +52,14 @@ public class CentralCommand {
         Squad least = findMostUnderSupplied();
         if (least != null){
             least.addMember(unit);
+            unit.move(least.squadLeader.getPosition(), false);
         }
-        unit.move(least.squadLeader.getPosition(), false);
+        else{
+            //Create a new squad
+            Squad newSquad = new Squad("");
+            newSquad.addMember(unit);
+            addSquad(newSquad);
+        }
     }
 
     /**
