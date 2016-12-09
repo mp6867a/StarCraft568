@@ -88,7 +88,7 @@ public class Squad {
     /**
      * Move all subordinate units to the leader.
      */
-    private void rallyToLeader(){
+    public void rallyToLeader(){
         Position rallyPoint = squadLeader.getPosition();
         for (int i = 1; i < n_members; i++){
             members[i].move(rallyPoint, false);
@@ -150,11 +150,11 @@ public class Squad {
      * Determines whether a squad is sufficiently close to one another
      * @return
      */
-    private boolean isClose(){
+    public boolean isClose(){
         int limit = 500; //some n that is the maximum two units can be apart from another
         for (int member_a = 0; member_a < n_members - 1; member_a++){
             for(int member_b = member_a + 1; member_b < n_members; member_b++){
-                if (members[member_a].getDistance(members[member_b].getPosition()) < limit){
+                if (members[member_a].getDistance(members[member_b].getPosition()) > limit){
                     return false;
                 }
             }

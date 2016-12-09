@@ -20,7 +20,14 @@ import jnibwapi.types.UpgradeType;
 import jnibwapi.types.UpgradeType.UpgradeTypes;
 import jnibwapi.util.BWColor;
 import bot.BuildOrder;
+import bot.CentralCommand;
 
+import jnibwapi.ChokePoint;
+import java.util.Collections;
+import  java.util.LinkedList;
+import jnibwapi.ChokePoint;
+import java.util.Collections;
+import  java.util.LinkedList;
 import javax.lang.model.type.UnionType;
 
 
@@ -106,7 +113,9 @@ public class protossClient implements BWAPIEventListener {
 	private int currentCount;
 	//Diagnostic mode provides extra logging information
 	private boolean diagnosticMode;
-
+	private CentralCommand command;
+	private List<Unit> miningProbes;
+	private List<Unit> minerals;
 	/**
 	 * Create a Java AI.
 	 */
@@ -145,6 +154,7 @@ public class protossClient implements BWAPIEventListener {
 		
 		// reset agent state
 		claimedMinerals.clear();
+		command = new CentralCommand();
 		warpedProbe = false;
 		poolDrone = null;
 		myRaceType = bwapi.getSelf().getRace();
@@ -162,7 +172,17 @@ public class protossClient implements BWAPIEventListener {
 
 		buildOrder = new BuildOrder(bwapi.getSelf(), bwapi.getEnemies().iterator().next());
 		determineBuildQuadrants();
-		 setRaceSpecificUnits();
+		setRaceSpecificUnits();
+
+		List<Unit> neutrals= bwapi.getNeutralUnits();
+		minerals = new ArrayList<Unit>();
+		for (Unit neutral : neutrals){
+			if (neutral.getType() == UnitTypes.Resource_Mineral_Field &&  neutral.getDistance(bwapi.getSelf().getStartLocation()) < 300)
+			{
+				minerals.add(neutral);
+			}
+		}
+		miningProbes = new ArrayList<Unit>();
 	}
 	
 	/**
@@ -176,7 +196,8 @@ public class protossClient implements BWAPIEventListener {
 		bwapi.getMap().drawTerrainData(bwapi);
 		//We always need to make sure there are no idle probes.
 		dispatchProbes();
-
+		command.loadUnits(bwapi.getMyUnits());
+		command.refresh();
 		if(!buildSupplyIfNeeded()){
 			if (lastState == SUCCESSFUL || lastState == REQUISITE_BUILDING_DOES_NOT_EXIST ||
 					lastState == NO_SUITABLE_BUILD_LOCATION) {
@@ -401,6 +422,21 @@ public class protossClient implements BWAPIEventListener {
 		return null;
 	}
 
+	private List<ChokePoint> getBaseChokePoints(){
+        List<ChokePoint> chokePoints = bwapi.getMap().getChokePoints();
+        List<ChokePoint> baseChokes = new LinkedList<>();
+        for (ChokePoint cp : chokePoints) {
+            if (cp.getFirstRegion() == bwapi.getMap().getRegion(buildArea)) {
+                baseChokes.add(cp);
+                System.out.println("in");
+            } else if (cp.getSecondRegion() == bwapi.getMap().getRegion(buildArea)) {
+                baseChokes.add(cp);
+                System.out.println("in");
+            }
+        }
+        return baseChokes;
+    }
+
 	/**
 	 * Get all of your units of a given type.
 	 * @param unitTypeSought the UnitType of Units sought.
@@ -527,9 +563,6 @@ public class protossClient implements BWAPIEventListener {
 	 * gathering gas if it is possible
 	 */
 	private void dispatchProbes(){
-		List<Unit> probes = getUnitsOfType(builderType);
-		List<Unit> minerals = bwapi.getNeutralUnits();
-
 		int gasGatherers = 0;
 		int mineralGatherers = 0;
 		int builders = 0;
@@ -543,15 +576,19 @@ public class protossClient implements BWAPIEventListener {
 				builders += 1;
 				doingSomething = true;
 			}
-			if (builder.isGatheringMinerals()){
+			if (!doingSomething && (builder.isGatheringMinerals() || (builder.getDistance(bwapi.getSelf().getStartLocation()) < 300) && builder.isMoving())){
 				mineralGatherers += 1;
 				doingSomething = true;
 			}
-			if (!doingSomething && builder != poolDrone){
+			if (builder.isCompleted() && !(doingSomething || builder == poolDrone)){
 				for (Unit mineral : minerals){
-					if(mineral.getType() == UnitTypes.Resource_Mineral_Field && (builder.getDistance(mineral) < 300 || mineral.getDistance(bwapi.getSelf().getStartLocation()) < 300)) {
-						builder.gather(mineral, false);
-					}
+						if (probes.size() % minerals.size() == 0){
+							claimedMinerals.clear();
+						}
+						if (!claimedMinerals.contains(mineral)) {
+							builder.gather(mineral, false);
+							break;
+						}
 				}
 			}
 			doingSomething = false;
