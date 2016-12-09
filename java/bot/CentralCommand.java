@@ -3,12 +3,15 @@ package bot;
 import java.util.ArrayList;
 import java.util.List;
 import jnibwapi.Unit;
+import jnibwapi.types.UnitType;
 
 public class CentralCommand {
     public List<Squad> squads;
+    public List<Unit> units;
 
     public CentralCommand(){
         squads = new ArrayList<Squad>();
+        units = new ArrayList<Unit>();
     }
 
     /**
@@ -18,6 +21,7 @@ public class CentralCommand {
         for (Squad squad : squads){
             squad.refresh();
         }
+        rallyIfNeeded();
     }
     public boolean attack(Unit enemy, int n_squads){
         return attack(enemy, n_squads, false);
@@ -60,6 +64,7 @@ public class CentralCommand {
             newSquad.addMember(unit);
             addSquad(newSquad);
         }
+        units.add(unit);
     }
 
     /**
@@ -84,6 +89,22 @@ public class CentralCommand {
             return newSquad;
         }
         return leastSquad;
+    }
+
+    public void loadUnits(List<Unit> newUnits){
+        for (Unit newUnit : newUnits){
+            if (!newUnit.getType().isBuilding() && newUnit.getType() != UnitType.UnitTypes.Protoss_Probe && !units.contains(newUnit)){
+                addUnitToSquad(newUnit);
+            }
+        }
+    }
+
+    public void rallyIfNeeded(){
+        for (Squad squad : squads){
+            if (!squad.isClose() && squad.isAvailable()){
+                squad.rallyToLeader();
+            }
+        }
     }
 
 }
