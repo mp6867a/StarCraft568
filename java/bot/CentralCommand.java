@@ -1,34 +1,42 @@
 package bot;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 
-import javafx.geometry.Pos;
-import javafx.scene.layout.TilePane;
+import jnibwapi.JNIBWAPI;
 import jnibwapi.Position;
 import jnibwapi.Unit;
 import jnibwapi.types.UnitType;
 import jnibwapi.BaseLocation;
-import jnibwapi.JNIBWAPI;
-import jnibwapi.types.UnitType;
 
 public class CentralCommand {
-            JNIBWAPI bwapi;
+
+    private JNIBWAPI bwapi;
 
     public List<Squad> squads;
     public List<Unit> units;
     public List<Unit> scarbList;
     public int ScarbCount = 0;
 
-    public HashSet<Position> enemyBuildsingsPos = new HashSet();
-    public List<Unit> EnemyList ;
+    public HashSet<Position> enemyBuildingPositionsList;
+    public HashSet<Unit> enemyList;
+    public HashSet<Unit> enemyBuildingList;
+    public HashSet<Unit> weakEnemyList;
+    public HashSet<Unit> allEnemiesList;
 
-    public CentralCommand(){
+    private Position enemyBasePosition;
+    private Unit enemyBaseUnit;
+
+
+    public CentralCommand(JNIBWAPI _bwapi){
+        bwapi = _bwapi;
         squads = new ArrayList<Squad>();
         units = new ArrayList<Unit>();
-        EnemyList = new ArrayList<Unit>() ;
+        enemyList = new HashSet<Unit>();
         scarbList = new ArrayList<Unit>() ;
+        enemyBuildingPositionsList = new HashSet<Position>();
     }
 
     /**
@@ -42,10 +50,18 @@ public class CentralCommand {
         }
         rallyIfNeeded();
     }
+
     public boolean attack(Unit enemy, int n_squads){
         return attack(enemy, n_squads, false);
     }
-    ///
+
+    /**
+     * Send a given number of squads to attack a particular enemy
+     * @param enemy The enemy unit to be attacked.
+     * @param n_squads The number of squads to be used in the attack.
+     * @param override Currently unused
+     * @return If all squads that have been requested to attack have been called to attack.
+     */
     public boolean attack(Unit enemy, int n_squads, boolean override){
         int engaged = 0;
         //could be improved by selecting the nearest n free squads
@@ -70,6 +86,7 @@ public class CentralCommand {
 
     /**
      * Adds a unit to the most undersupplied squad and moves that unit to the leader.
+     * If all squads are at full strength, create a new unit
      * @param unit The unit to be added to the Command.
      */
     public void addUnitToSquad(Unit unit){
@@ -127,124 +144,77 @@ public class CentralCommand {
         }
     }
 
-
-    public Position retrunEnemyLocation(){
-
-
-return null;
+    /**
+     * Gets the most likely position of an enemy base by finding the median position
+     * of all enemy units. While this is not guarenteed to find the enemy base, if it
+     * does not, it will return a position with a large number of enemies.
+     * @return The median location of the enemy
+     */
+    public Position getEnemyLocation(){
+        List<Integer> xPositions = new ArrayList<Integer>();
+        List<Integer> yPositions = new ArrayList<Integer>();
+        Position tempPosition;
+        for (Unit enemyUnit : enemyList){
+            tempPosition = enemyUnit.getPosition();
+            xPositions.add(tempPosition.getPX());
+            yPositions.add(tempPosition.getPY());
+        }
+        Collections.sort(xPositions);
+        Collections.sort(yPositions);
+        //return the median x and y positions
+        return new Position(xPositions.get((int) (xPositions.size() / 2)),
+                            yPositions.get((int) (yPositions.size() / 2)));
     }
 
-
-//this method goes over possible bases locations
-
-    public  void attackAtStartBaseLocation(){
-
-       for(BaseLocation base: bwapi.getMap().getStartLocations() ){
-
-            if(base.isStartLocation()){
-                //add check over enemy units
-                for ( Unit unit : units){//modify this to squad if needed
-
-                        unit.attack(base.getPosition(), true);
+    private void fixEnemyBasePositon(){
+        Position basePosition;
+        for (BaseLocation startPosition: bwapi.getMap().getStartLocations()){
+            basePosition = startPosition.getPosition();
+            for (Unit building : enemyBuildingList){
+                if (building.getDistance(basePosition) < 500){
+                    enemyBasePosition = basePosition;
+                    enemyBaseUnit = building;
+                    return;
                 }
             }
-
-       }
-
+        }
     }
 
-    public  void  GetEnemeyBaseToMemoery() {
+    public  void attackAtStartBaseLocation(int n_squads){
+        if(enemyBasePosition == null || !enemyBaseUnit.isExists()){
+            fixEnemyBasePositon();
+        }
+        if(enemyBasePosition != null) {
+            attack(enemyBaseUnit, n_squads);
+        }
+    }
 
+    /** this still needs work - it should check the enemy add it to list and if it doesn't exist remove it
+     if it is an enemy that can attack ( i.e. not a buliding) // other checks might be better -
+     */
+    public void gatherEnemies() {
+        enemyList.clear();
         //loop through enemy units
         for (Unit enemyUnit : bwapi.getEnemyUnits()) {
-            // if it is a bulding type
-            if (enemyUnit.getType().isBuilding()) {
-
-                // if the it does not contain a an enemy unit's postion - then we will add a postion
-                if (!enemyBuildsingsPos.contains(enemyUnit.getPosition())) enemyBuildsingsPos.add(enemyUnit.getPosition());
-
+            // if the enemy unit can attack - not sure if this is applicable here there are other checks that may be more helpful
+            if (enemyUnit.getType().isAttackCapable() && !enemyUnit.getType().isBuilding()){
+                enemyList.add(enemyUnit.getTarget());
             }
-        }
+            else{
+                if (enemyUnit.getType().isBuilding()){
+                    enemyBuildingPositionsList.add(enemyUnit.getPosition());
+                    enemyBuildingList.add(enemyUnit);
 
-
-        // loop through postions in list
-        for (Position postion : enemyBuildsingsPos ){
-
-            // need to get x and y values of the postion in relation to world map - not sure if it is BX VS Px
-            Position top = new Position( postion.getPX()/32, postion.getPY()/32 );
-
-
-            //check if that postion is visble
-            if(bwapi.isVisible(top)){
-
-                boolean BuildingIsStillThere = false;
-
-                for ( Unit enemyUni: bwapi.getEnemyUnits()){
-
-                        if(enemyUni.getType().isBuilding() && enemyUni.getPosition() == postion){
-
-                            BuildingIsStillThere = true;
-                            break;
-                        }
                 }
-
-                if(BuildingIsStillThere == false){
-
-                    enemyBuildsingsPos.remove(postion);
-                    break;
+                else{
+                    weakEnemyList.add(enemyUnit);
                 }
-
-
             }
-
-
+            allEnemiesList.add(enemyUnit);
         }
     }
-
-
-
-
-///// this still needs work - it should check the enemy add it to list and if it doesnt exsist remove it
-    /// if it is an anymy that can attack ( i.e. not a bulding) // other checks might be better -
-    public  void  getEnemyiesToList() {
-
-        //loop through enemy units
-        for (Unit enemyUnit : bwapi.getEnemyUnits()) {
-            /// if the enemy unit can attack - not sure if this is applicable here there are other checks that may be more helpfull
-            if (enemyUnit.getType().isAttackCapable()) {
-
-                if (!EnemyList.contains(enemyUnit.getTarget())) EnemyList.add(enemyUnit.getTarget());
-
-            }
-        }
-
-
-        // loop through enemy list  in list
-        for (Unit unit : EnemyList ){
-
-                boolean enemyIsDeadk = false;
-
-                for ( Unit enemyUni: bwapi.getEnemyUnits()){
-
-                    //if(enemyUni.getType().is){  --- can update this to nclude contions
-                    //unit . isstuck might be usefull for us later on - in another calss
-                    if( !unit.isExists()) { //dpes not exsist
-                        enemyIsDeadk = true;
-                        break;
-                    }
-                }
-
-                if(enemyIsDeadk == false){
-
-                    EnemyList.remove(unit);
-                    break;
-                }
-        }
-    }
-
-
-
-    //call this every frame so it will keep on bulding
+    //TODO I do not think this is valid code. Please make it more generic.
+    //call this every frame so it will keep on building
     public void DeployOneScarbs() {
         int count = 0;
         for (Unit unit : units) { // if units is the list that stores our units? // or acsess the squad that has a reaver
@@ -286,24 +256,45 @@ return null;
             }
         }
 
-        // send in units follows this strcutur
-    // UnitType.UnitTypes.Zerg_Zergling or
 
-
-        public void AttackSpecficEnemy(UnitType Enemytype){
-            for (Unit unit : bwapi.getMyUnits()) {
-                if (unit.getType() == Enemytype && unit.isIdle()){
-                    for (Unit enemy :EnemyList ) {//bwapi.getEnemyUnits()
-                        if(enemy.getType() == Enemytype){
-                        unit.attack(enemy.getPosition(), false);
-                        break;
-                    }}
+    /**
+     * Attack the a certain type of enemy as defined by 'enemyType'.
+     * @param enemyType The type of enemy to be attacked.
+     * @param n_squads How many squads should be used to attack the enemy.
+     */
+    public void attackSpecificEnemyType(UnitType enemyType, int n_squads){
+            for (Unit enemy : enemyList){
+                if (enemy.getType() == enemyType){
+                    attack(enemy, n_squads);
+                    return;
                 }
             }
 
+    }
+    public void attackSpecificEnemyType(UnitType enemyType){
+        attackSpecificEnemyType(enemyType, 1);
+    }
+
+
+    public boolean attackMostVulerableEnemy(int n_squads){
+        return attack(getMostVulnerableEnemy(), n_squads);
+    }
+
+    private Unit getMostVulnerableEnemy(){
+        int index = 0;
+        Unit weakestEnemy = null;
+        double weakest = 1; //1 is the maximum value of the division of hitpoints / init hitpoints
+        double tempHealth;
+        for (Unit enemyUnit: enemyList){
+                tempHealth = (enemyUnit.getHitPoints() + 1) / (enemyUnit.getInitialHitPoints() + 1);
+                if (tempHealth < weakest) {
+                    weakest = tempHealth;
+                    weakestEnemy = enemyUnit;
+                }
+            index += 1;
         }
-
-
+        return enemyList.size() == 0 ? null : weakestEnemy;
+    }
 }
 
 

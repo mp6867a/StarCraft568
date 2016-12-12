@@ -35,6 +35,13 @@ public class BuildOrder {
     private int myBuildOrderInterStep;
     private int myBuildOrderIntraStep;
 
+
+    private List<UnitType> myBuildOrderEmergency;
+    private List<Integer> myBuildOrderEmergencyQuantities;
+
+    private int myBuildOrderEmergencyInterStep;
+    private int myBuildOrderEmergencyIntraStep;
+
     private List<UnitType> myBuildOrderDefault;
     private List<Integer> myBuildOrderDefaultQuantities;
 
@@ -42,6 +49,7 @@ public class BuildOrder {
     private int myBuildOrderDefaultIntraStep;
 
     private boolean toDefault;
+    private boolean isEmergency;
 
     private int myStrength;
     private int enemyStrength;
@@ -56,6 +64,7 @@ public class BuildOrder {
     private RaceType enemyRace;
 
     private String defaultKey;
+    private String emergencyKey;
 
     public static RaceType protoss = RaceType.RaceTypes.Protoss;
     public static RaceType zerg = RaceType.RaceTypes.Zerg;
@@ -83,6 +92,7 @@ public class BuildOrder {
         toDefault = false;
 
         defaultKey = "default";
+        emergencyKey = "emergency";
 
         createBuildOrder();
     }
@@ -106,18 +116,30 @@ public class BuildOrder {
                     toDefault = true;
                     continue;
                 }
+                if (line.toLowerCase().equals(emergencyKey)){
+                    //all units are now to be added to the emergency case
+                    isEmergency = true;
+                    continue;
+                }
                 tempLine = line.split(",");
                 tempUnitType = getUnitType(tempLine[0].replace('_', ' '));
                 tempInt = Integer.parseInt(tempLine[1].trim());
                 if (tempUnitType != null) {
-                    if (!toDefault) {
+                    if (!toDefault || !isEmergency) {
                         myBuildOrder.add(tempUnitType);
                         myBuildOrderQuantities.add(tempInt);
                     }
                     else{
+                        if (toDefault){
                         myBuildOrderDefault.add(tempUnitType);
                         myBuildOrderDefaultQuantities.add(tempInt);
                         System.out.println("Now adding units to default loop.");
+                        }
+                        if(isEmergency){
+                            myBuildOrderEmergency.add(tempUnitType);
+                            myBuildOrderEmergencyQuantities.add(tempInt);
+                        }
+
                     }
                 }
                 else{
@@ -127,6 +149,7 @@ public class BuildOrder {
             reader.close();
             fileReader.close();
             toDefault = false;
+            isEmergency = false;
         }
         catch (NumberFormatException e){
                 System.out.println("Critical error (" + tempLine[1] + " is not a number): build order could not be loaded.");
@@ -139,8 +162,13 @@ public class BuildOrder {
             System.out.println("Critical error (IO error): build order could not be loaded.");
         }
     }
-    public UnitType getNextBuild(){
-        if (!toDefault){
+    public UnitType getNextBuild(boolean emergency){
+        isEmergency = emergency;
+        if (!isEmergency){
+            myBuildOrderEmergencyInterStep = 0;
+            myBuildOrderEmergencyIntraStep = 0;
+        }
+        if (!toDefault || !isEmergency){
             if (myBuildOrderIntraStep == myBuildOrderQuantities.get(myBuildOrderInterStep)){
                 myBuildOrderIntraStep = 0;
                 myBuildOrderInterStep += 1;
@@ -149,18 +177,28 @@ public class BuildOrder {
             if (myBuildOrderInterStep >= myBuildOrder.size()){
                 System.out.println("Your explicit build order has been exhausted.");
                 toDefault = true;
-                return getNextBuild();
+                return getNextBuild(false);
             }
             return myBuildOrder.get(myBuildOrderInterStep);
         }
         else{
-            if (myBuildOrderDefaultIntraStep == myBuildOrderDefaultQuantities.get(myBuildOrderDefaultInterStep)){
-                myBuildOrderDefaultIntraStep = 0;
-                myBuildOrderDefaultInterStep += 1;
-                myBuildOrderDefaultInterStep %= myBuildOrderDefault.size();
+            if (isEmergency){
+                if (myBuildOrderEmergencyIntraStep == myBuildOrderEmergencyQuantities.get(myBuildOrderEmergencyInterStep)) {
+                    myBuildOrderEmergencyIntraStep = 0;
+                    myBuildOrderEmergencyInterStep += 1;
+                    myBuildOrderEmergencyInterStep %= myBuildOrderEmergency.size();
+                } else {
+                    myBuildOrderEmergencyIntraStep += 1;
+                }
             }
-            else{
-                myBuildOrderDefaultIntraStep += 1;
+            if(toDefault) {
+                if (myBuildOrderDefaultIntraStep == myBuildOrderDefaultQuantities.get(myBuildOrderDefaultInterStep)) {
+                    myBuildOrderDefaultIntraStep = 0;
+                    myBuildOrderDefaultInterStep += 1;
+                    myBuildOrderDefaultInterStep %= myBuildOrderDefault.size();
+                } else {
+                    myBuildOrderDefaultIntraStep += 1;
+                }
             }
             return myBuildOrderDefault.get(myBuildOrderDefaultInterStep);
         }

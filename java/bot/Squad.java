@@ -135,6 +135,9 @@ public class Squad {
      * @return A boolean describing whether the attack order has been issued.
      */
     public boolean attack(Unit enemy, boolean overrideClose){
+        if (enemy == null){
+            return false;
+        }
         if (overrideClose || isClose()){
             for (Unit member : members){
                 member.attack(enemy.getPosition(), false);
