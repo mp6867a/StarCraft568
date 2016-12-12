@@ -79,12 +79,15 @@ public class protossClient implements BWAPIEventListener {
 	private List<Unit> zealots;
 	private List<Unit> nexus;
 
+	private Unit geyser;
+	private Unit base;
+	
 	private List<Integer> buildQuadrants;
 
 	private BuildOrder buildOrder;
 
 	private UnitType unitTypeUnderConstruction;
-
+	private UnitType buildIfIdle;
 	private static int errorCode = 0;
 	public static final int SUCCESSFUL = errorCode++;
 	public static final int NOT_ENOUGH_MINERALS = errorCode++;
@@ -101,6 +104,7 @@ public class protossClient implements BWAPIEventListener {
 	private CentralCommand command;
 	private List<Unit> miningProbes;
 	private List<Unit> minerals;
+	
 	/**
 	 * Create a Java AI.
 	 */
@@ -148,6 +152,7 @@ public class protossClient implements BWAPIEventListener {
 		currentCount = -1;
 		//Something that cannot be the first unit to be built.
 		unitTypeUnderConstruction = UnitTypes.Terran_Nuclear_Silo;
+
 		lastState = REQUISITE_BUILDING_DOES_NOT_EXIST;
 
 		probes = new ArrayList<Unit>();
@@ -158,6 +163,8 @@ public class protossClient implements BWAPIEventListener {
 		buildOrder = new BuildOrder(bwapi.getSelf(), bwapi.getEnemies().iterator().next());
 		determineBuildQuadrants();
 		setRaceSpecificUnits();
+		
+		gasFieldPos = getGasLocation();
 
 		List<Unit> neutrals= bwapi.getNeutralUnits();
 		minerals = new ArrayList<Unit>();
@@ -168,6 +175,9 @@ public class protossClient implements BWAPIEventListener {
 			}
 		}
 		miningProbes = new ArrayList<Unit>();
+		buildIfIdle = buildOrder.getNextBuild(false, true);
+		
+		base = getUnitsOfType(UnitTypes.Protoss_Nexus).get(0);
 	}
 	
 	/**
@@ -190,7 +200,7 @@ public class protossClient implements BWAPIEventListener {
 				if (lastState == REQUISITE_BUILDING_DOES_NOT_EXIST || lastState == NO_SUITABLE_BUILD_LOCATION ||
 						!unitTypeUnderConstruction.isBuilding() ||
 						(getUnitsOfType(unitTypeUnderConstruction).size() != currentCount && isAllCompleted(unitTypeUnderConstruction))){
-					unitTypeUnderConstruction = buildOrder.getNextBuild(false);
+					unitTypeUnderConstruction = buildOrder.getNextBuild(false, false);
 					currentCount = getUnitsOfType(unitTypeUnderConstruction).size();
 					lastState = buildAgnostic(unitTypeUnderConstruction);
 				}
@@ -202,7 +212,14 @@ public class protossClient implements BWAPIEventListener {
 				//we lacked the minerals or gas on the last try... try again...
 				lastState = buildAgnostic(unitTypeUnderConstruction);
 			}
+		}
+		if (bwapi.getSelf().getMinerals()> buildIfIdle.getMineralPrice() * 3 && bwapi.getSelf().getGas() > buildIfIdle.getGasPrice() * 2){
+			train(buildIfIdle);
 
+			if (diagnosticMode){
+				System.out.print("Building a " + buildIfIdle.getName() + " as resources are being squandered.");
+			}
+			buildIfIdle = buildOrder.getNextBuild(false, true);
 		}
 
 		//Attack and defence logic here!
@@ -349,6 +366,15 @@ public class protossClient implements BWAPIEventListener {
     private boolean onGrid(Position test){
 		int testY = test.getPY();
 		int testX = test.getPX();
+		Position topLeftGeyser = geyser.getTopLeft();
+		Position bottomRightBase = base.getBottomRight();
+		int bottomY = Math.max(topLeftGeyser.getPY(), bottomRightBase.getPY());
+		int rightX = Math.max(topLeftGeyser.getPX(), bottomRightBase.getPX());
+		int topY = Math.min(topLeftGeyser.getPY(), bottomRightBase.getPY());
+		int leftX = Math.min(topLeftGeyser.getPX(), bottomRightBase.getPX());
+		if (testX >= leftX && testX <= rightX && testY >=topY && testY <= bottomY){
+			return false;
+		}
 		return testY >= 0 && testX >= 0 && testY < bwapi.getMap().getSize().getPY() && testX < bwapi.getMap().getSize().getPX();
 	}
 
@@ -421,7 +447,6 @@ public class protossClient implements BWAPIEventListener {
 	 * @return the success state
 	 */
 	private int buildGasField(UnitType refinery){
-		gasFieldPos = getGasLocation();
 		try {
 			Unit bestProbe = getBestNUnits(builderType, 1).get(0);
 			bestProbe.build(gasFieldPos, refinery);
@@ -498,6 +523,7 @@ public class protossClient implements BWAPIEventListener {
 				minDistance = distances.get(i);
 			}
 		}
+		geyser = geysers.get(minIndex);
 		return geysers.get(minIndex).getTilePosition();
 	}
 
@@ -752,15 +778,15 @@ public class protossClient implements BWAPIEventListener {
 	 * @return
 	 */
 	private boolean buildSupplyIfNeeded(){
-		for (Unit unit : getUnitsOfType(supplyType)){
-			if (unit.isConstructing()){
-				//don't allow multiple supply units to be built at once from this method.
-				return false;
-			}
-		}
 		int supply = bwapi.getSelf().getSupplyUsed();
 		int supplyTotal = bwapi.getSelf().getSupplyTotal();
 		if (supply + 2 > supplyTotal){
+			for (Unit unit : getUnitsOfType(supplyType)){
+				if (!unit.isCompleted()){
+					//don't allow multiple supply units to be built at once from this method.
+					return false;
+				}
+			}
 			build(supplyType);
 			return true;
 		}
@@ -873,5 +899,11 @@ public class protossClient implements BWAPIEventListener {
 			}
 		}
 		return true;
+	}
+	private void log(String message){
+		//TODO write to a file
+		if (diagnosticMode){
+			System.out.println(message);
+		}
 	}
 }

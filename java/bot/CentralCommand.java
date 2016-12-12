@@ -29,6 +29,8 @@ public class CentralCommand {
     private Position enemyBasePosition;
     private Unit enemyBaseUnit;
 
+    private int previousCount;
+
 
     public CentralCommand(JNIBWAPI _bwapi){
         bwapi = _bwapi;
@@ -37,6 +39,7 @@ public class CentralCommand {
         enemyList = new HashSet<Unit>();
         scarbList = new ArrayList<Unit>() ;
         enemyBuildingPositionsList = new HashSet<Position>();
+        previousCount = 0;
     }
 
     /**
@@ -49,6 +52,7 @@ public class CentralCommand {
             squad.refresh();
         }
         rallyIfNeeded();
+        patrol(2);
     }
 
     public boolean attack(Unit enemy, int n_squads){
@@ -294,6 +298,40 @@ public class CentralCommand {
             index += 1;
         }
         return enemyList.size() == 0 ? null : weakestEnemy;
+    }
+
+    private void patrol(int n_squads){
+        List<Unit> cannons = getUnitsOfType(UnitType.UnitTypes.Protoss_Photon_Cannon);
+        if (cannons.size() != previousCount) {
+            previousCount = cannons.size();
+            if(previousCount != 0) {
+                for (int i = 0; i < n_squads && i < squads.size(); i++) {
+                    Collections.shuffle(cannons);
+                    if (squads.get(i).isAvailable()) {
+                        squads.get(i).patrol(cannons.get(0).getPosition());
+                    }
+                    else{
+                        n_squads += 1;
+                        //try adding another squad
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Get all of your units of a given type.
+     * @param unitTypeSought the UnitType of Units sought.
+     * @return
+     */
+    private List<Unit> getUnitsOfType(UnitType unitTypeSought){
+        List<Unit> unitsOfTypeSought = new ArrayList<Unit>();
+        for(Unit unit: bwapi.getMyUnits()){
+            if(unit.getType() == unitTypeSought){
+                unitsOfTypeSought.add(unit);
+            }
+        }
+        return unitsOfTypeSought;
     }
 }
 

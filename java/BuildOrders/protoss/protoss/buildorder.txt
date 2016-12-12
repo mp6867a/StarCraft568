@@ -1,18 +1,25 @@
-Protoss_Probe, 2
+Protoss_Probe, 1
 Protoss_Pylon, 1
 Protoss_Gateway, 1
+Protoss_Probe, 1
 Protoss_Zealot, 5
-Protoss_Probe, 2
+Protoss_Probe, 1
+Protoss_Zealot, 2
 Protoss_Pylon, 1
 Protoss_Forge, 1
 Protoss_Photon_Cannon, 3
+Protoss_Zealot, 5
+Protoss_Gateway, 1
+Protoss_Zealot, 5
+Protoss_Cybernetics_Core, 1
+Protoss_Assimilator, 1
+Protoss_Dragoon, 2
 Protoss_Probe, 1
 Protoss_Zealot, 5
 Protoss_Gateway, 1
 Protoss_Zealot, 5
 Protoss_Photon_Cannon, 3
 Protoss_Zealot, 5
-Protoss_Assimilator, 1
 Protoss_Zealot, 3
 Protoss_Pylon, 1
 Protoss_Cybernetics_Core, 1
@@ -33,3 +40,9 @@ Protoss_Zealot, 3
 default
 Protoss_Pylon, 1
 Protoss_Zealot, 6
+emergency
+Protoss_Zealot, 3
+Protoss_Dragoon, 1
+idle
+Protoss_Zealot, 3
+Protoss_Dragoon, 1

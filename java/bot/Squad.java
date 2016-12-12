@@ -174,6 +174,13 @@ public class Squad {
         return n_members;
     }
 
+    public void patrol(Position patrolTo){
+        for (Unit member : members){
+            if (member != null) {
+                member.patrol(patrolTo, false);
+            }
+        }
+    }
 
     public Unit[] returnMemberArray(){
         return members;
