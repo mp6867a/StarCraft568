@@ -1,34 +1,19 @@
 package bot;
 
-import java.util.HashSet;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.ExecutionException;
+import java.util.*;
 
-import com.sun.jmx.snmp.SnmpUnknownSecModelException;
-import javafx.geometry.Pos;
 import jnibwapi.BWAPIEventListener;
 import jnibwapi.JNIBWAPI;
 import jnibwapi.Position;
 import jnibwapi.Unit;
 import jnibwapi.types.RaceType;
-import jnibwapi.types.TechType;
-import jnibwapi.types.TechType.TechTypes;
 import jnibwapi.types.UnitType;
 import jnibwapi.types.UnitType.UnitTypes;
-import jnibwapi.types.UpgradeType;
-import jnibwapi.types.UpgradeType.UpgradeTypes;
 import jnibwapi.util.BWColor;
-import bot.BuildOrder;
-import bot.CentralCommand;
 
 import jnibwapi.ChokePoint;
-import java.util.Collections;
-import  java.util.LinkedList;
-import jnibwapi.ChokePoint;
-import java.util.Collections;
-import  java.util.LinkedList;
-import javax.lang.model.type.UnionType;
+
+import javax.management.loading.ClassLoaderRepository;
 
 
 /**
@@ -96,18 +81,26 @@ public class protossClient implements BWAPIEventListener {
 	private List<Unit> zealots;
 	private List<Unit> nexus;
 
+	private List<Position> biasedChokePoints;
+	private List<Boolean> chokePointsCovered;
+
+	private Unit geyser;
+	private Unit base;
+	
 	private List<Integer> buildQuadrants;
 
 	private BuildOrder buildOrder;
 
 	private UnitType unitTypeUnderConstruction;
-
-	public static final int SUCCESSFUL = 0;
-	public static final int NOT_ENOUGH_MINERALS = 1;
-	public static final int NOT_ENOUGH_GAS = 2;
-	public static final int NOT_ENOUGH_MINERALS_AND_GAS = 3;
-	public static final int REQUISITE_BUILDING_DOES_NOT_EXIST = 4;
-	public static final int NO_SUITABLE_BUILD_LOCATION = 5;
+	private UnitType buildIfIdle;
+	private static int errorCode = 0;
+	public static final int SUCCESSFUL = errorCode++;
+	public static final int NOT_ENOUGH_MINERALS = errorCode++;
+	public static final int NOT_ENOUGH_GAS = errorCode++;
+	public static final int NOT_ENOUGH_MINERALS_AND_GAS = errorCode++;
+	public static final int REQUISITE_BUILDING_DOES_NOT_EXIST = errorCode++;
+	public static final int NO_SUITABLE_BUILD_LOCATION = errorCode++;
+	public static final int NO_BUILDERS_EXIST = errorCode++;
 
 	private int lastState;
 	private int currentCount;
@@ -116,6 +109,7 @@ public class protossClient implements BWAPIEventListener {
 	private CentralCommand command;
 	private List<Unit> miningProbes;
 	private List<Unit> minerals;
+	
 	/**
 	 * Create a Java AI.
 	 */
@@ -154,7 +148,7 @@ public class protossClient implements BWAPIEventListener {
 		
 		// reset agent state
 		claimedMinerals.clear();
-		command = new CentralCommand();
+		command = new CentralCommand(bwapi);
 		warpedProbe = false;
 		poolDrone = null;
 		myRaceType = bwapi.getSelf().getRace();
@@ -163,6 +157,7 @@ public class protossClient implements BWAPIEventListener {
 		currentCount = -1;
 		//Something that cannot be the first unit to be built.
 		unitTypeUnderConstruction = UnitTypes.Terran_Nuclear_Silo;
+
 		lastState = REQUISITE_BUILDING_DOES_NOT_EXIST;
 
 		probes = new ArrayList<Unit>();
@@ -173,6 +168,8 @@ public class protossClient implements BWAPIEventListener {
 		buildOrder = new BuildOrder(bwapi.getSelf(), bwapi.getEnemies().iterator().next());
 		determineBuildQuadrants();
 		setRaceSpecificUnits();
+		
+		gasFieldPos = getGasLocation();
 
 		List<Unit> neutrals= bwapi.getNeutralUnits();
 		minerals = new ArrayList<Unit>();
@@ -183,6 +180,13 @@ public class protossClient implements BWAPIEventListener {
 			}
 		}
 		miningProbes = new ArrayList<Unit>();
+		buildIfIdle = buildOrder.getNextBuild(false, true);
+
+		base = getUnitsOfType(UnitTypes.Protoss_Nexus).get(0);
+		biasedChokePoints = new ArrayList<Position>();
+		chokePointsCovered = new ArrayList<Boolean>();
+		setBiasedChokePoints();
+
 	}
 	
 	/**
@@ -191,36 +195,59 @@ public class protossClient implements BWAPIEventListener {
 	@Override
 	public void matchFrame() {
 		countPopulation();
-		// print out some info about any upgrades or research happening
+		//Make sure all buildings that require power are in fact powered
 		// draw the terrain information
 		bwapi.getMap().drawTerrainData(bwapi);
 		//We always need to make sure there are no idle probes.
 		dispatchProbes();
 		command.loadUnits(bwapi.getMyUnits());
-		command.refresh();
-		if(!buildSupplyIfNeeded()){
+        boolean emergency = command.refresh();
+		if(!buildSupplyIfNeeded() && ensureWarped()){
 			if (lastState == SUCCESSFUL || lastState == REQUISITE_BUILDING_DOES_NOT_EXIST ||
 					lastState == NO_SUITABLE_BUILD_LOCATION) {
 				//If the build was successful, but it was a building, then we must check if building has actually started!
 				if (lastState == REQUISITE_BUILDING_DOES_NOT_EXIST || lastState == NO_SUITABLE_BUILD_LOCATION ||
 						!unitTypeUnderConstruction.isBuilding() ||
 						(getUnitsOfType(unitTypeUnderConstruction).size() != currentCount && isAllCompleted(unitTypeUnderConstruction))){
-					unitTypeUnderConstruction = buildOrder.getNextBuild();
-					currentCount = getUnitsOfType(unitTypeUnderConstruction).size();
-					lastState = buildAgnostic(unitTypeUnderConstruction);
+					unitTypeUnderConstruction = buildOrder.getNextBuild(emergency, false);
+					if (unitTypeUnderConstruction == UnitTypes.Protoss_Photon_Cannon && allChokePointsCovered())
+					{
+						buildOrder.queue.add(unitTypeUnderConstruction);
+						unitTypeUnderConstruction = UnitTypes.Protoss_Pylon;
+						lastState = build(unitTypeUnderConstruction, getNextChokePoint());
+						currentCount = getUnitsOfType(unitTypeUnderConstruction).size();
+					}
+					else {
+						currentCount = getUnitsOfType(unitTypeUnderConstruction).size();
+						lastState = buildAgnostic(unitTypeUnderConstruction);
+					}
 				}
 				else{
-
 					//lastState = buildAgnostic(unitTypeUnderConstruction);
+					UnitType temp = buildOrder.getNextBuild(false, false);
+					if (temp.isBuilding() || train(temp) != SUCCESSFUL){
+						buildOrder.queue.add(temp);
+					}
 				}
 			}
 			else{
 				//we lacked the minerals or gas on the last try... try again...
 				lastState = buildAgnostic(unitTypeUnderConstruction);
 			}
-
 		}
+		if (1 == 0 && bwapi.getSelf().getMinerals()>= buildIfIdle.getMineralPrice() * 3 && bwapi.getSelf().getGas() >= buildIfIdle.getGasPrice() * 2){
+			train(buildIfIdle);
+
+			if (diagnosticMode){
+				System.out.print("Building a " + buildIfIdle.getName() + " as resources are being squandered.");
+			}
+			buildIfIdle = buildOrder.getNextBuild(false, true);
+		}
+
 		//Attack and defence logic here!
+		if (command.units.size() >= Squad.maxUnits * 2){
+			command.attackMostVulerableEnemy(1);
+		}
 	}
 	@Override
 	public void keyPressed(int keyCode) {}
@@ -259,6 +286,28 @@ public class protossClient implements BWAPIEventListener {
 	@Override
 	public void playerDropped(int playerID) {}
 
+	private boolean allChokePointsCovered(){
+		for (boolean chokePointCovered : chokePointsCovered){
+			if (!chokePointCovered){
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private Position getNextChokePoint(){
+		for (int i = 0; i < biasedChokePoints.size(); i++)
+		{
+			if (!chokePointsCovered.get(i))
+			{
+				chokePointsCovered.set(i, true);
+				return biasedChokePoints.get(i);
+			}
+		}
+		return null;
+	}
+
+
     private int countUnits(UnitType searchType)
     {
         int count = 0;
@@ -268,22 +317,6 @@ public class protossClient implements BWAPIEventListener {
             }
         }
         return count;
-    }
-
-	/**
-	 * Get all units that are idle.
-	 * TODO remove this method. It serves no purpose.
-	 * @return An array of idle units.
-	 */
-	private Unit[] idleUnits()
-	{
-		ArrayList<Unit> idleUnitsList = new ArrayList<Unit>();
-		for (Unit unit : bwapi.getMyUnits()) {
-			if (unit.isIdle()) {
-				idleUnitsList.add(unit);
-			}
-		}
-		return idleUnitsList.toArray(new Unit[0]);
     }
 
 	private double getEnemyHealth(){
@@ -368,22 +401,6 @@ public class protossClient implements BWAPIEventListener {
 		}
 	}
 
-    private Unit getMostVulnerableEnemy(){
-        int index = 0;
-        int minIndex = 0;
-        double weakest = 1; //1 is the maximum value of the divison of hitpoints / init hitpoints
-        double tempHealth;
-        List<Unit> enemyUnits = bwapi.getEnemyUnits();
-        for (Unit enemyUnit: enemyUnits){
-            tempHealth = (enemyUnit.getHitPoints() + 1) / (enemyUnit.getInitialHitPoints() + 1);
-            if (tempHealth <  weakest){
-                weakest = tempHealth;
-                minIndex = index;
-            }
-            index += 1;
-        }
-        return enemyUnits.size() == 0 ? null : enemyUnits.get(minIndex);
-    }
 
 	/**
 	 * Tests if the given position is on the grid.
@@ -393,7 +410,20 @@ public class protossClient implements BWAPIEventListener {
     private boolean onGrid(Position test){
 		int testY = test.getPY();
 		int testX = test.getPX();
+		Position topLeftGeyser = geyser.getTopLeft();
+		Position bottomRightBase = base.getBottomRight();
+		int bottomY = Math.max(topLeftGeyser.getPY(), bottomRightBase.getPY());
+		int rightX = Math.max(topLeftGeyser.getPX(), bottomRightBase.getPX());
+		int topY = Math.min(topLeftGeyser.getPY(), bottomRightBase.getPY());
+		int leftX = Math.min(topLeftGeyser.getPX(), bottomRightBase.getPX());
+		if (testX >= leftX && testX <= rightX && testY >=topY && testY <= bottomY){
+			return false;
+		}
 		return testY >= 0 && testX >= 0 && testY < bwapi.getMap().getSize().getPY() && testX < bwapi.getMap().getSize().getPX();
+	}
+
+	private Position getBuildPosition(Position base, int offsetFromCenter, UnitType type){
+		return getBuildPosition(base, offsetFromCenter, type, true);
 	}
 
 	/**
@@ -401,16 +431,19 @@ public class protossClient implements BWAPIEventListener {
 	 * @param base The starting position of this search.
 	 * @param offsetFromCenter How far to search the grid.
 	 * @param type The type of unit being built.
-	 * @return
+	 * @param buildTowardEnemy If the building should be built toward the enemy base
+	 * @return The position on which to build
 	 */
-    private Position getBuildPosition(Position base, int offsetFromCenter, UnitType type){
+    private Position getBuildPosition(Position base, int offsetFromCenter, UnitType type, boolean buildTowardEnemy){
 		int max = 1000;
-		boolean nullDiagnostic = true;
-		int newX, newY;
 		bwapi.drawCircle(base, 50,  BWColor.Black, false, false);
-		for (int x_off = 0; x_off <= max; x_off += (int)((max - offsetFromCenter) / 50)){
-			for (int y_off = 0; y_off <= x_off; y_off += (int)((max - offsetFromCenter) / 50)){
-				for (Position buildArea : inBuildQuadrants(base, x_off, x_off)) {
+		int flip = buildTowardEnemy ? 1 : -1;
+		List<Position> positions;
+		for (int x_off = offsetFromCenter; x_off <= max; x_off += (int)((max - offsetFromCenter) / 50)){
+			for (int y_off = offsetFromCenter; y_off <= x_off; y_off += (int)((max - offsetFromCenter) / 50)){
+				positions = inBuildQuadrants(base, flip * x_off, flip * y_off);
+				Collections.shuffle(positions);
+				for (Position buildArea : positions){
 					if (onGrid(buildArea)) {
 						if (bwapi.canBuildHere(buildArea, type, true)) {
 							return buildArea;
@@ -424,19 +457,42 @@ public class protossClient implements BWAPIEventListener {
 
 	private List<ChokePoint> getBaseChokePoints(){
         List<ChokePoint> chokePoints = bwapi.getMap().getChokePoints();
-        List<ChokePoint> baseChokes = new LinkedList<>();
+        List<ChokePoint> baseChokes = new ArrayList<ChokePoint>();
         for (ChokePoint cp : chokePoints) {
-            if (cp.getFirstRegion() == bwapi.getMap().getRegion(buildArea)) {
-                baseChokes.add(cp);
-                System.out.println("in");
-            } else if (cp.getSecondRegion() == bwapi.getMap().getRegion(buildArea)) {
-                baseChokes.add(cp);
-                System.out.println("in");
-            }
+            baseChokes.add(cp);
         }
         return baseChokes;
     }
 
+    private void setBiasedChokePoints(){
+		Position ourSide;
+		for (ChokePoint chokepoint : getBaseChokePoints()){
+			ourSide = closestTo(base.getPosition(), new Position[]{chokepoint.getFirstSide(), chokepoint.getSecondSide()});
+			//bias our build side towards the center of the chokepoint
+			ourSide = new Position((4 * chokepoint.getCenter().getPX() + ourSide.getPX()) / 5, (4 * chokepoint.getCenter().getPY() + ourSide.getPY()) / 5);
+			if (base.getDistance(ourSide) < 1250) {
+				biasedChokePoints.add(ourSide);
+				chokePointsCovered.add(false);
+			}
+		}
+	}
+
+
+
+	private Position closestTo(Position center, Position[] compares){
+		if (compares.length == 0){
+			return null;
+		}
+		Position closest = new Position(0, 0);
+		double closestDistance = Integer.MAX_VALUE;
+		for (Position test : compares){
+			if(center.getApproxPDistance(test) < closestDistance){
+				closest = test;
+				closestDistance = center.getApproxPDistance(test);
+			}
+		}
+		return closest;
+	}
 	/**
 	 * Get all of your units of a given type.
 	 * @param unitTypeSought the UnitType of Units sought.
@@ -458,7 +514,6 @@ public class protossClient implements BWAPIEventListener {
 	 * @return the success state
 	 */
 	private int buildGasField(UnitType refinery){
-		gasFieldPos = getGasLocation();
 		try {
 			Unit bestProbe = getBestNUnits(builderType, 1).get(0);
 			bestProbe.build(gasFieldPos, refinery);
@@ -535,6 +590,7 @@ public class protossClient implements BWAPIEventListener {
 				minDistance = distances.get(i);
 			}
 		}
+		geyser = geysers.get(minIndex);
 		return geysers.get(minIndex).getTilePosition();
 	}
 
@@ -567,6 +623,9 @@ public class protossClient implements BWAPIEventListener {
 		int mineralGatherers = 0;
 		int builders = 0;
 		boolean doingSomething = false;
+		if (probes.size() % minerals.size() == 0){
+			claimedMinerals.clear();
+		}
 		for (Unit builder : probes){
 			if (builder.isGatheringGas()){
 				gasGatherers += 1;
@@ -582,11 +641,9 @@ public class protossClient implements BWAPIEventListener {
 			}
 			if (builder.isCompleted() && !(doingSomething || builder == poolDrone)){
 				for (Unit mineral : minerals){
-						if (probes.size() % minerals.size() == 0){
-							claimedMinerals.clear();
-						}
 						if (!claimedMinerals.contains(mineral)) {
 							builder.gather(mineral, false);
+							claimedMinerals.add(mineral);
 							break;
 						}
 				}
@@ -598,6 +655,10 @@ public class protossClient implements BWAPIEventListener {
 				dispatchToGasField();
 				gasGatherers += 1;
 			}
+		}
+		if (poolDrone != null && poolDrone.isIdle()){
+			//send the builder drone to the mineral that will be guarenteed to have the minimum number of other drones gathering from it.
+			poolDrone.gather(minerals.get(minerals.size() - 1), false);
 		}
 	}
 
@@ -661,9 +722,13 @@ public class protossClient implements BWAPIEventListener {
 	 * @return
 	 */
 	private int build(UnitType building){
+
 		if (poolDrone == null || !poolDrone.isExists())
 		{
-			poolDrone = getBestNUnits(builderType, 1).get(0);
+			if (probes.size() == 0){
+				return NO_BUILDERS_EXIST;
+			}
+			poolDrone = probes.get(0);
 		}
 		return build(building, bwapi.getSelf().getStartLocation());
 	}
@@ -682,14 +747,17 @@ public class protossClient implements BWAPIEventListener {
 		try {
 			Unit bestProbe = getBestNUnits(builderType, 1).get(0);
 			if (bwapi.getSelf().getMinerals() >= building.getMineralPrice() && bwapi.getSelf().getGas() >= building.getGasPrice()){
-				if (UnitTypes.Protoss_Robotics_Facility == building){
-					System.out.println("Building robo.");
-				}
 				if(building.isRefinery()){
 					return buildGasField(building);
 				}
 				if (myRaceType == RaceType.RaceTypes.Protoss && building != UnitTypes.Protoss_Pylon){
-					buildPos = getBuildPosition(pyPos, 0, building);
+					buildPos = getBuildPosition(pyPos, 50, building, false);
+					if (buildPos == null){
+						buildPos = getBuildPosition(pyPos, 0, building, true);
+					}
+				}
+				if (building == UnitTypes.Protoss_Photon_Cannon || building == UnitTypes.Terran_Missile_Turret){
+					buildPos = getBuildPosition(pyPos, 100, building);
 				}
 				else {
 					buildPos = getBuildPosition(basePos, 0, building);
@@ -714,7 +782,7 @@ public class protossClient implements BWAPIEventListener {
 			return REQUISITE_BUILDING_DOES_NOT_EXIST;
 		}
 		//Not enough minerals
-		return mineral_gas_deficit(building);
+		return mineralGasDeficit(building);
 	}
 
 	/**
@@ -727,7 +795,13 @@ public class protossClient implements BWAPIEventListener {
 		UnitType buildingThatMakes = UnitTypes.getUnitType(unit.getWhatBuildID());
 		try {
 			//this should be the building that constructs this unit.
-			Unit bestBuilding = getBestNUnits(buildingThatMakes, 1).get(0);
+			List<Unit> buildings = getUnitsOfType(buildingThatMakes);
+			Unit bestBuilding = buildings.get(0);
+			for (Unit building : buildings){
+				if (bestBuilding.getTrainingQueueSize() > building.getTrainingQueueSize() && building.isCompleted()){
+					bestBuilding = building;
+				}
+			}
 			if (bwapi.getSelf().getMinerals() >= unit.getMineralPrice() && bwapi.getSelf().getGas() >= unit.getGasPrice()){
 				bestBuilding.train(unit);
 				return SUCCESSFUL;
@@ -739,7 +813,7 @@ public class protossClient implements BWAPIEventListener {
 			return REQUISITE_BUILDING_DOES_NOT_EXIST;
 		}
 		//Not enough minerals and/or gas
-		return mineral_gas_deficit(unit);
+		return mineralGasDeficit(unit);
 	}
 
 	/**
@@ -747,7 +821,7 @@ public class protossClient implements BWAPIEventListener {
 	 * @param unitType The type of Unit attempted to be built or trained.
 	 * @return Code describing the deficit.
 	 */
-	private int mineral_gas_deficit(UnitType unitType){
+	private int mineralGasDeficit(UnitType unitType){
 		int myGas = bwapi.getSelf().getGas();
 		int myMinerals = bwapi.getSelf().getMinerals();
 		int unitMinerals = unitType.getMineralPrice();
@@ -779,8 +853,14 @@ public class protossClient implements BWAPIEventListener {
 	private boolean buildSupplyIfNeeded(){
 		int supply = bwapi.getSelf().getSupplyUsed();
 		int supplyTotal = bwapi.getSelf().getSupplyTotal();
-		if (supply + 2 > supplyTotal){
-			build(supplyType);
+		if (supply + 11 > supplyTotal){
+			for (Unit unit : getUnitsOfType(supplyType)){
+				if (!unit.isCompleted()){
+					//don't allow multiple supply units to be built at once from this method.
+					return true;
+				}
+			}
+            build(supplyType);
 			return true;
 		}
 		return false;
@@ -878,18 +958,25 @@ public class protossClient implements BWAPIEventListener {
 		return true;
 	}
 
-	private void isWarped(){
+	private boolean ensureWarped(){
 		if (myRaceType == RaceType.RaceTypes.Protoss){
 			for (Unit building : bwapi.getMyUnits()){
 				if (building.getType().isBuilding() && building.getType() != UnitTypes.Protoss_Nexus && building.getType() != UnitTypes.Protoss_Assimilator){
 					if (building.isUnpowered()){
 						if(!poolDrone.isConstructing()) {
-							build(UnitTypes.Protoss_Pylon, building.getPosition());
-							return;
+							build(UnitTypes.Protoss_Pylon, getBuildPosition(building.getPosition(), 0, UnitTypes.Protoss_Pylon, false));
+							return false;
 						}
 					}
 				}
 			}
+		}
+		return true;
+	}
+	private void log(String message){
+		//TODO write to a file
+		if (diagnosticMode){
+			System.out.println(message);
 		}
 	}
 }

@@ -15,6 +15,7 @@ public class Squad {
         n_members = 0;
     }
 
+
     /**
      * Adds a member to the squad if there is room.
      * @param unit
@@ -134,9 +135,14 @@ public class Squad {
      * @return A boolean describing whether the attack order has been issued.
      */
     public boolean attack(Unit enemy, boolean overrideClose){
+        if (enemy == null){
+            return false;
+        }
         if (overrideClose || isClose()){
-            for (Unit member : members){
-                member.attack(enemy.getPosition(), false);
+            for (Unit member : members) {
+                if (member != null) {
+                    member.attack(enemy.getPosition(), false);
+                }
             }
             return true;
         }
@@ -169,4 +175,24 @@ public class Squad {
     public int membersQuantity(){
         return n_members;
     }
+
+    public void patrol(Position patrolTo){
+        for (Unit member : members){
+            if (member != null) {
+                member.patrol(patrolTo, false);
+            }
+        }
+    }
+    public void move(Position moveTo){
+        for (Unit member : members){
+            if (member != null) {
+                member.move(moveTo, false);
+            }
+        }
+    }
+
+    public Unit[] returnMemberArray(){
+        return members;
+    }
+
 }
