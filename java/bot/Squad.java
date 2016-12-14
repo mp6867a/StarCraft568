@@ -139,8 +139,10 @@ public class Squad {
             return false;
         }
         if (overrideClose || isClose()){
-            for (Unit member : members){
-                member.attack(enemy.getPosition(), false);
+            for (Unit member : members) {
+                if (member != null) {
+                    member.attack(enemy.getPosition(), false);
+                }
             }
             return true;
         }

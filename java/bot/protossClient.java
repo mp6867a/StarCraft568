@@ -201,7 +201,7 @@ public class protossClient implements BWAPIEventListener {
 		//We always need to make sure there are no idle probes.
 		dispatchProbes();
 		command.loadUnits(bwapi.getMyUnits());
-		command.refresh();
+        boolean emergency = command.refresh();
 		if(!buildSupplyIfNeeded() && ensureWarped()){
 			if (lastState == SUCCESSFUL || lastState == REQUISITE_BUILDING_DOES_NOT_EXIST ||
 					lastState == NO_SUITABLE_BUILD_LOCATION) {
@@ -209,7 +209,7 @@ public class protossClient implements BWAPIEventListener {
 				if (lastState == REQUISITE_BUILDING_DOES_NOT_EXIST || lastState == NO_SUITABLE_BUILD_LOCATION ||
 						!unitTypeUnderConstruction.isBuilding() ||
 						(getUnitsOfType(unitTypeUnderConstruction).size() != currentCount && isAllCompleted(unitTypeUnderConstruction))){
-					unitTypeUnderConstruction = buildOrder.getNextBuild(false, UnitTypes.Protoss_Zealot.getMineralPrice() * 3 > bwapi.getSelf().getMinerals());
+					unitTypeUnderConstruction = buildOrder.getNextBuild(emergency, false);
 					if (unitTypeUnderConstruction == UnitTypes.Protoss_Photon_Cannon && allChokePointsCovered())
 					{
 						buildOrder.queue.add(unitTypeUnderConstruction);
@@ -224,6 +224,10 @@ public class protossClient implements BWAPIEventListener {
 				}
 				else{
 					//lastState = buildAgnostic(unitTypeUnderConstruction);
+					UnitType temp = buildOrder.getNextBuild(false, false);
+					if (temp.isBuilding() || train(temp) != SUCCESSFUL){
+						buildOrder.queue.add(temp);
+					}
 				}
 			}
 			else{
@@ -231,7 +235,7 @@ public class protossClient implements BWAPIEventListener {
 				lastState = buildAgnostic(unitTypeUnderConstruction);
 			}
 		}
-		if (bwapi.getSelf().getMinerals()> buildIfIdle.getMineralPrice() * 3 && bwapi.getSelf().getGas() > buildIfIdle.getGasPrice() * 2){
+		if (1 == 0 && bwapi.getSelf().getMinerals()>= buildIfIdle.getMineralPrice() * 3 && bwapi.getSelf().getGas() >= buildIfIdle.getGasPrice() * 2){
 			train(buildIfIdle);
 
 			if (diagnosticMode){
@@ -791,7 +795,13 @@ public class protossClient implements BWAPIEventListener {
 		UnitType buildingThatMakes = UnitTypes.getUnitType(unit.getWhatBuildID());
 		try {
 			//this should be the building that constructs this unit.
-			Unit bestBuilding = getBestNUnits(buildingThatMakes, 1).get(0);
+			List<Unit> buildings = getUnitsOfType(buildingThatMakes);
+			Unit bestBuilding = buildings.get(0);
+			for (Unit building : buildings){
+				if (bestBuilding.getTrainingQueueSize() > building.getTrainingQueueSize() && building.isCompleted()){
+					bestBuilding = building;
+				}
+			}
 			if (bwapi.getSelf().getMinerals() >= unit.getMineralPrice() && bwapi.getSelf().getGas() >= unit.getGasPrice()){
 				bestBuilding.train(unit);
 				return SUCCESSFUL;
@@ -843,14 +853,14 @@ public class protossClient implements BWAPIEventListener {
 	private boolean buildSupplyIfNeeded(){
 		int supply = bwapi.getSelf().getSupplyUsed();
 		int supplyTotal = bwapi.getSelf().getSupplyTotal();
-		if (supply + 2 > supplyTotal){
+		if (supply + 11 > supplyTotal){
 			for (Unit unit : getUnitsOfType(supplyType)){
 				if (!unit.isCompleted()){
 					//don't allow multiple supply units to be built at once from this method.
-					return false;
+					return true;
 				}
 			}
-			build(supplyType);
+            build(supplyType);
 			return true;
 		}
 		return false;

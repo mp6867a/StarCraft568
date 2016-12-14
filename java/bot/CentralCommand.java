@@ -45,7 +45,7 @@ public class CentralCommand {
     /**
      * Issue refresh command to all squads
      */
-    public void refresh(){
+    public boolean refresh(){
 
         // need to refresh enemy base list here evry frame
         for (Squad squad : squads){
@@ -53,8 +53,19 @@ public class CentralCommand {
         }
         rallyIfNeeded();
         patrol(2);
+        return defend();
     }
 
+    private boolean defend(){
+        List<Unit> enemies = bwapi.getEnemyUnits();
+        int squads_free = squads.size();
+        for (Unit enemy : enemies){
+            if (enemy.getDistance(bwapi.getSelf().getStartLocation()) < 1000 && squads_free-- > 0) {
+                attack(enemy, 1);
+            }
+        }
+        return enemies.size() > 0;
+    }
     public boolean attack(Unit enemy, int n_squads){
         return attack(enemy, n_squads, false);
     }
