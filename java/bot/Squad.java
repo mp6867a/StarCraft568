@@ -181,6 +181,13 @@ public class Squad {
             }
         }
     }
+    public void move(Position moveTo){
+        for (Unit member : members){
+            if (member != null) {
+                member.move(moveTo, false);
+            }
+        }
+    }
 
     public Unit[] returnMemberArray(){
         return members;

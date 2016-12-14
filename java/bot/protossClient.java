@@ -13,6 +13,8 @@ import jnibwapi.util.BWColor;
 
 import jnibwapi.ChokePoint;
 
+import javax.management.loading.ClassLoaderRepository;
+
 
 /**
  * Example Java AI Client using JNI-BWAPI.
@@ -78,6 +80,9 @@ public class protossClient implements BWAPIEventListener {
 	private List<Unit> probes;
 	private List<Unit> zealots;
 	private List<Unit> nexus;
+
+	private List<Position> biasedChokePoints;
+	private List<Boolean> chokePointsCovered;
 
 	private Unit geyser;
 	private Unit base;
@@ -176,8 +181,12 @@ public class protossClient implements BWAPIEventListener {
 		}
 		miningProbes = new ArrayList<Unit>();
 		buildIfIdle = buildOrder.getNextBuild(false, true);
-		
+
 		base = getUnitsOfType(UnitTypes.Protoss_Nexus).get(0);
+		biasedChokePoints = new ArrayList<Position>();
+		chokePointsCovered = new ArrayList<Boolean>();
+		setBiasedChokePoints();
+
 	}
 	
 	/**
@@ -200,9 +209,18 @@ public class protossClient implements BWAPIEventListener {
 				if (lastState == REQUISITE_BUILDING_DOES_NOT_EXIST || lastState == NO_SUITABLE_BUILD_LOCATION ||
 						!unitTypeUnderConstruction.isBuilding() ||
 						(getUnitsOfType(unitTypeUnderConstruction).size() != currentCount && isAllCompleted(unitTypeUnderConstruction))){
-					unitTypeUnderConstruction = buildOrder.getNextBuild(false, false);
-					currentCount = getUnitsOfType(unitTypeUnderConstruction).size();
-					lastState = buildAgnostic(unitTypeUnderConstruction);
+					unitTypeUnderConstruction = buildOrder.getNextBuild(false, UnitTypes.Protoss_Zealot.getMineralPrice() * 3 > bwapi.getSelf().getMinerals());
+					if (unitTypeUnderConstruction == UnitTypes.Protoss_Photon_Cannon && allChokePointsCovered())
+					{
+						buildOrder.queue.add(unitTypeUnderConstruction);
+						unitTypeUnderConstruction = UnitTypes.Protoss_Pylon;
+						lastState = build(unitTypeUnderConstruction, getNextChokePoint());
+						currentCount = getUnitsOfType(unitTypeUnderConstruction).size();
+					}
+					else {
+						currentCount = getUnitsOfType(unitTypeUnderConstruction).size();
+						lastState = buildAgnostic(unitTypeUnderConstruction);
+					}
 				}
 				else{
 					//lastState = buildAgnostic(unitTypeUnderConstruction);
@@ -263,6 +281,28 @@ public class protossClient implements BWAPIEventListener {
 	public void unitComplete(int unitID) {}
 	@Override
 	public void playerDropped(int playerID) {}
+
+	private boolean allChokePointsCovered(){
+		for (boolean chokePointCovered : chokePointsCovered){
+			if (!chokePointCovered){
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private Position getNextChokePoint(){
+		for (int i = 0; i < biasedChokePoints.size(); i++)
+		{
+			if (!chokePointsCovered.get(i))
+			{
+				chokePointsCovered.set(i, true);
+				return biasedChokePoints.get(i);
+			}
+		}
+		return null;
+	}
+
 
     private int countUnits(UnitType searchType)
     {
@@ -413,19 +453,42 @@ public class protossClient implements BWAPIEventListener {
 
 	private List<ChokePoint> getBaseChokePoints(){
         List<ChokePoint> chokePoints = bwapi.getMap().getChokePoints();
-        List<ChokePoint> baseChokes = new LinkedList<>();
+        List<ChokePoint> baseChokes = new ArrayList<ChokePoint>();
         for (ChokePoint cp : chokePoints) {
-            if (cp.getFirstRegion() == bwapi.getMap().getRegion(buildArea)) {
-                baseChokes.add(cp);
-                System.out.println("in");
-            } else if (cp.getSecondRegion() == bwapi.getMap().getRegion(buildArea)) {
-                baseChokes.add(cp);
-                System.out.println("in");
-            }
+            baseChokes.add(cp);
         }
         return baseChokes;
     }
 
+    private void setBiasedChokePoints(){
+		Position ourSide;
+		for (ChokePoint chokepoint : getBaseChokePoints()){
+			ourSide = closestTo(base.getPosition(), new Position[]{chokepoint.getFirstSide(), chokepoint.getSecondSide()});
+			//bias our build side towards the center of the chokepoint
+			ourSide = new Position((4 * chokepoint.getCenter().getPX() + ourSide.getPX()) / 5, (4 * chokepoint.getCenter().getPY() + ourSide.getPY()) / 5);
+			if (base.getDistance(ourSide) < 1250) {
+				biasedChokePoints.add(ourSide);
+				chokePointsCovered.add(false);
+			}
+		}
+	}
+
+
+
+	private Position closestTo(Position center, Position[] compares){
+		if (compares.length == 0){
+			return null;
+		}
+		Position closest = new Position(0, 0);
+		double closestDistance = Integer.MAX_VALUE;
+		for (Position test : compares){
+			if(center.getApproxPDistance(test) < closestDistance){
+				closest = test;
+				closestDistance = center.getApproxPDistance(test);
+			}
+		}
+		return closest;
+	}
 	/**
 	 * Get all of your units of a given type.
 	 * @param unitTypeSought the UnitType of Units sought.

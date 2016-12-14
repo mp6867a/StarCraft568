@@ -78,9 +78,13 @@ public class BuildOrder {
     public static RaceType zerg = RaceType.RaceTypes.Zerg;
     public static RaceType terran = RaceType.RaceTypes.Terran;
 
+    public List<UnitType> queue;
+
     public BuildOrder(Player selfPlayer, Player oppoPlayer){
         myPlayer = selfPlayer;
         enemyPlayer = oppoPlayer;
+
+        queue = new ArrayList<UnitType>();
 
         myRace = myPlayer.getRace();
         enemyRace = enemyPlayer.getRace();
@@ -196,6 +200,11 @@ public class BuildOrder {
         }
     }
     public UnitType getNextBuild(boolean emergency, boolean idle){
+        if (queue.size() > 0){
+            UnitType temp = queue.get(0);
+            queue.remove(0);
+            return temp;
+        }
         isIdle = idle;
         isEmergency = emergency;
         if (!isEmergency){

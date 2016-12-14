@@ -308,7 +308,7 @@ public class CentralCommand {
                 for (int i = 0; i < n_squads && i < squads.size(); i++) {
                     Collections.shuffle(cannons);
                     if (squads.get(i).isAvailable()) {
-                        squads.get(i).patrol(cannons.get(0).getPosition());
+                        squads.get(i).move(cannons.get(0).getPosition());
                     }
                     else{
                         n_squads += 1;
