@@ -64,7 +64,7 @@ public class Squad {
             if (members[i].isUnderAttack()){
                 for(int j = 0; j < n_members; j++) {
                     if (j != i && !members[j].isUnderAttack()) {
-                        members[j].move(members[i].getPosition(), false);
+                        members[j].attack(members[i].getPosition(), true);
                     }
                 }
                 return n_members;
@@ -106,7 +106,7 @@ public class Squad {
             Position rallyPoint = squadLeader.getPosition();
             for (int i = 1; i < n_members; i++){
                 if (members[i] != null && members[i].getDistance(rallyPoint) > 150){
-                    members[i].follow(squadLeader, false);
+                    members[i].attack(squadLeader.getPosition(), true);
                 }
             }
         }
@@ -118,7 +118,7 @@ public class Squad {
      */
     private void moveTo(Position destination){
         for (int i = 0; i < n_members; i++){
-            members[i].move(destination, false);
+            members[i].attack(destination, true);
         }
     }
 
@@ -140,7 +140,7 @@ public class Squad {
      * @return A boolean describing if attack orders have been issued.
      */
     public boolean attack(Unit enemy){
-        return attack(enemy, false);
+        return attack(enemy, true);
     }
 
     /**
@@ -159,7 +159,7 @@ public class Squad {
         if (overrideClose || isClose()){
             for (Unit member : members) {
                 if (member != null && ((!member.isMoving() && member.isIdle()))){
-                    member.attack(enemy.getPosition(), false);
+                    member.attack(enemy.getPosition(), true);
                     attackCount += 1;
                 }
             }
@@ -204,14 +204,14 @@ public class Squad {
     public void patrol(Position patrolTo){
         for (Unit member : members){
             if (member != null) {
-                member.patrol(patrolTo, false);
+                member.attack(patrolTo, true);
             }
         }
     }
     public void move(Position moveTo){
         for (Unit member : members){
             if (member != null) {
-                member.move(moveTo, false);
+                member.attack(moveTo, true);
             }
         }
     }
