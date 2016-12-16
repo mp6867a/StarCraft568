@@ -4,11 +4,10 @@ Fall 2016 CSC 568
 This is a project for our AI class; our goal is to run a starcraft AI capable of executing basic strategies. 
 
 ## Goal
-
-Defeat the enemy as quickly as possible, while avoiding destruction ourselves.
+Defeat the enemy as quickly as possible, while avoiding self-destruction.
+Also known as crushing any bot that challenges our authority. 
 
 ## API Reference
-
 We used the Java interface version to implement our bot, JNIBWAPI (  Java interface for the Brood War API), please refer to https://github.com/JNIBWAPI/JNIBWAPI/wiki
 
 ## Instructions 
@@ -29,3 +28,16 @@ We used the Java interface version to implement our bot, JNIBWAPI (  Java interf
   Unlike a typical player, our bot has access to perfect information, and we attempted to utilize this to the fullest. While our bot has a default build order, it also tries to monitor whether the enemy is planning to rush by counting the number of units being spawned as well as the number of hatcheries/stargates/etc… the enemy has built. As a Zerg rush is a very effective and common strategy, this was something very important that had to be addressed. Perfect information also allowed us to not have to devote any units to scouting, which was convenient. We could tell if our base was about to be attacked by monitoring the closest enemy’s distance from our base, and switching to our emergency build list if necessary.
 
   Ideally, we would have liked to use some high-level strategies focusing on cloaked units (untargetable even with perfect information without a detecting unit), but these strategies were mid to late game and our bot tended to live or die by early game. As the game never progressed long enough to build the necessary structures to create cloaked armies, we scrapped the idea in favor of simpler strategies that had quicker payoff and were more easily programmable.
+  
+  
+  ## Technical Summary 
+  Our main classes 
+ The ExampleAIClient class was given to us. It instantiates the JNI-BWAPI interface and connects to BWAP. It calls basic methods such as getMinerals, getmyUnits and matchFrame. 
+ ProtossClient is based off of the ExampleAIClient class which makes it our main class. It contains multiple methods such as a countPopulation and wipePopulation. It also references to  other classes such as BuildOrder, CentralCommand, and Squad.
+ BuildOrder depending on the race it will take in a queue of commands and then execute them depending if they fulfill their if statement. It executes actions of building units and buildings. 
+UnitOrder has a createUnitOrder method which tries to 
+The Squad class keeps units in groups of eight to attack so we don't have lost sheeps wandering around the game. We also assign a squadleader to guide the lost zealots. 
+CentralCommand controls the smaller things such as the class squad. It also contains the attack method, which we had bugs in and have been continously trying to fix. 
+What the agent does overtime 
+Note: if you see TestProtoss as a class it is currently not functioning, and obselete.
+
