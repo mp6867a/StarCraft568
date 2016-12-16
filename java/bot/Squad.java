@@ -84,6 +84,7 @@ public class Squad {
                     if(members[j] != null){
                         members[i] = members[j];
                         members[j] = null;
+                        engagedEnemies.clear();
                         break;
                     }
                 }
@@ -104,8 +105,8 @@ public class Squad {
         if(squadLeader != null && squadLeader.isExists()){
             Position rallyPoint = squadLeader.getPosition();
             for (int i = 1; i < n_members; i++){
-                if (members[i] != null && members[i].getDistance(rallyPoint) < 600){
-                    members[i].move(rallyPoint, false);
+                if (members[i] != null && members[i].getDistance(rallyPoint) > 150){
+                    members[i].follow(squadLeader, false);
                 }
             }
         }
@@ -127,7 +128,7 @@ public class Squad {
      */
     public boolean isAvailable(){
         for (int i = 0; i < n_members; i++){
-            if (members[i].isAttacking() || members[i].isUnderAttack()){
+            if (members[i] != null && (members[i].isAttacking() || members[i].isUnderAttack() || members[i].isMoving())){
                 return false;
             }
         }
@@ -157,7 +158,7 @@ public class Squad {
         }
         if (overrideClose || isClose()){
             for (Unit member : members) {
-                if (member != null && (member.isIdle() || !member.isUnderAttack() || !member.isAttacking())){
+                if (member != null && ((!member.isMoving() && member.isIdle()))){
                     member.attack(enemy.getPosition(), false);
                     attackCount += 1;
                 }

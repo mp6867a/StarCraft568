@@ -51,7 +51,6 @@ public class CentralCommand {
      * Issue refresh command to all squads
      */
     public boolean refresh(){
-    bwapi.drawCircle(bwapi.getPlayer((bwapi.getSelf().getID() + 1) % 2).getStartLocation(), 100, BWColor.White, true, true);
         // need to refresh enemy base list here evry frame
         for (Squad squad : squads){
             squad.refresh();

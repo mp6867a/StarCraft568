@@ -15,7 +15,10 @@ Protoss_Robotics_Facility, 1
 Protoss_Observatory, 1
 Protoss_Observer, 1
 Protoss_Probe, 3
-Protoss_Zealot, 3
+Protoss_Protoss_Citadel_of_Adun, 1
+Protoss_Zealot, 5
+Protoss_Templar_Archives, 1
+rotoss_Dark_Templar, 2
 Protoss_Gateway, 1
 Protoss_Zealot, 5
 Protoss_Probe, 2
