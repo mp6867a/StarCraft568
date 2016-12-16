@@ -33,10 +33,10 @@ We used the Java interface version to implement our bot, JNIBWAPI (  Java interf
   
 ## Technical Summary 
 * The ExampleAIClient class was given to us. It instantiates the JNI-BWAPI interface and connects to BWAP. It calls basic methods such as getMinerals, getmyUnits and matchFrame. 
-* ProtossClient is based off of the ExampleAIClient class which makes it our main class. It contains multiple methods such as a countPopulation and wipePopulation. It also references to  other classes such as BuildOrder, CentralCommand, and Squad.
+* ProtossClient is based off of the ExampleAIClient class which makes it our main class. It contains multiple methods such as a countPopulation and wipePopulation. It also references to  other classes such as BuildOrder, CentralCommand, and Squad. It runs the main game and when used in conjuction with BuildOrder class to set the structure of buildings and units, based on the location. 
 * BuildOrder depending on the race it will take in a queue of commands and then execute them depending if they fulfill their if statement. It executes actions of building units and buildings. 
-* UnitOrder has a createUnitOrder method which tries to 
 * The Squad class keeps units in groups of eight to attack so we don't have lost sheep wandering around the game. We also assign a squad leader to guide the lost zealots. 
 * CentralCommand controls the smaller things such as the class squad. It also contains the attack method, which we had bugs in and have been continuously trying to fix. 
-* Note: if you see TestProtoss as a class it is currently not functioning, and obsolete.
+* Note: if you see TestProtoss as a class it is currently not functioning, and obsolete. UnitOrder is another class that is still being modified and not completely in use. It's main goal was to tell the zealots to create units, however that's now central command. 
+
 
