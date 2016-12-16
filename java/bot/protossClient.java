@@ -212,8 +212,6 @@ public class protossClient implements BWAPIEventListener {
 					unitTypeUnderConstruction = buildOrder.getNextBuild(emergency, false);
 					if (unitTypeUnderConstruction == UnitTypes.Protoss_Photon_Cannon && allChokePointsCovered())
 					{
-						buildOrder.queue.add(unitTypeUnderConstruction);
-						unitTypeUnderConstruction = UnitTypes.Protoss_Pylon;
 						lastState = build(unitTypeUnderConstruction, getNextChokePoint());
 						currentCount = getUnitsOfType(unitTypeUnderConstruction).size();
 					}
@@ -222,7 +220,7 @@ public class protossClient implements BWAPIEventListener {
 						lastState = buildAgnostic(unitTypeUnderConstruction);
 					}
 				}
-				else{
+				else if (getUnitsOfType(unitTypeUnderConstruction).size() != currentCount){
 					//lastState = buildAgnostic(unitTypeUnderConstruction);
 					UnitType temp = buildOrder.getNextBuild(false, false);
 					if (temp.isBuilding() || train(temp) != SUCCESSFUL){
