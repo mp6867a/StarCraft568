@@ -188,7 +188,7 @@ public class CentralCommand {
         Collections.sort(yPositions);
         //return the median x and y positions
         return new Position(xPositions.get((int) (xPositions.size() / 2)),
-                            yPositions.get((int) (yPositions.size() / 2)));
+                yPositions.get((int) (yPositions.size() / 2)));
     }
 
     private void fixEnemyBasePositon(){
@@ -256,7 +256,7 @@ public class CentralCommand {
                     unit.buildAddon(UnitType.UnitTypes.Protoss_Scarab);
 
                     // need to add built scarb to the list - or does it do this automaticlly
-                   // scarbList.add()
+                    // scarbList.add()
 
                 }
                 // can add other unit checks here and have them build or issue commands
@@ -267,19 +267,19 @@ public class CentralCommand {
         }
     }
 
-        public void SendScarbs(Unit enmey){
-            ScarbCount = scarbList.size(); // set the couunter to the size of the scarb list
+    public void SendScarbs(Unit enmey){
+        ScarbCount = scarbList.size(); // set the couunter to the size of the scarb list
 
-            for (Unit unit : scarbList){
+        for (Unit unit : scarbList){
 
-                if (ScarbCount!= 0){ // if we have scarbs
+            if (ScarbCount!= 0){ // if we have scarbs
 
-                    unit.attack(enmey.getPosition(), false);
-                    scarbList.remove(unit); // remove the used scarb from the list after it was deployed
-                    break;
-                }
+                unit.attack(enmey.getPosition(), false);
+                scarbList.remove(unit); // remove the used scarb from the list after it was deployed
+                break;
             }
         }
+    }
 
 
     /**
@@ -288,12 +288,12 @@ public class CentralCommand {
      * @param n_squads How many squads should be used to attack the enemy.
      */
     public void attackSpecificEnemyType(UnitType enemyType, int n_squads){
-            for (Unit enemy : enemyList){
-                if (enemy.getType() == enemyType){
-                    attack(enemy, n_squads);
-                    return;
-                }
+        for (Unit enemy : enemyList){
+            if (enemy.getType() == enemyType){
+                attack(enemy, n_squads);
+                return;
             }
+        }
 
     }
     public void attackSpecificEnemyType(UnitType enemyType){
@@ -311,11 +311,11 @@ public class CentralCommand {
         double weakest = 1; //1 is the maximum value of the division of hitpoints / init hitpoints
         double tempHealth;
         for (Unit enemyUnit: enemyList){
-                tempHealth = (enemyUnit.getHitPoints() + 1) / (enemyUnit.getInitialHitPoints() + 1);
-                if (tempHealth < weakest) {
-                    weakest = tempHealth;
-                    weakestEnemy = enemyUnit;
-                }
+            tempHealth = (enemyUnit.getHitPoints() + 1) / (enemyUnit.getInitialHitPoints() + 1);
+            if (tempHealth < weakest) {
+                weakest = tempHealth;
+                weakestEnemy = enemyUnit;
+            }
             index += 1;
         }
         return enemyList.size() == 0 ? null : weakestEnemy;
@@ -355,7 +355,6 @@ public class CentralCommand {
         return unitsOfTypeSought;
     }
 }
-
 
 
 
