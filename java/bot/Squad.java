@@ -2,17 +2,22 @@ package bot;
 
 import jnibwapi.Unit;
 import jnibwapi.Position;
+
+import java.util.HashSet;
+
 public class Squad {
     public static int maxUnits = 8;
     private Unit[] members;
     private String myName;
     protected Unit squadLeader;
     private int n_members;
+    private HashSet<Unit> engagedEnemies;
 
     public Squad(String name){
         myName = name;
         members = new Unit[maxUnits];
         n_members = 0;
+        engagedEnemies = new HashSet<Unit>();
     }
 
 
@@ -49,7 +54,12 @@ public class Squad {
         if (anyDead) {
             compress();
         }
+        rallyToLeader();
         //if any member is under attack, move all of those units to that member
+        return support();
+
+    }
+    private int support(){
         for (int i = 0; i < n_members; i++){
             if (members[i].isUnderAttack()){
                 for(int j = 0; j < n_members; j++) {
@@ -63,7 +73,6 @@ public class Squad {
 
         return n_members;
     }
-
     /**
      * Makes sure there are no gaps in the member array.
      * Will reassign squad leader if the former has died.
@@ -81,6 +90,8 @@ public class Squad {
                 if (i == 0){
                     //new leader as the old one has died.
                     squadLeader = members[0];
+                    //This clears the enemies. If the squad is wiped out this hould be reset.
+                    engagedEnemies.clear();
                 }
             }
         }
@@ -90,9 +101,13 @@ public class Squad {
      * Move all subordinate units to the leader.
      */
     public void rallyToLeader(){
-        Position rallyPoint = squadLeader.getPosition();
-        for (int i = 1; i < n_members; i++){
-            members[i].move(rallyPoint, false);
+        if(squadLeader != null && squadLeader.isExists()){
+            Position rallyPoint = squadLeader.getPosition();
+            for (int i = 1; i < n_members; i++){
+                if (members[i] != null && members[i].getDistance(rallyPoint) < 600){
+                    members[i].move(rallyPoint, false);
+                }
+            }
         }
     }
 
@@ -135,16 +150,25 @@ public class Squad {
      * @return A boolean describing whether the attack order has been issued.
      */
     public boolean attack(Unit enemy, boolean overrideClose){
-        if (enemy == null){
+        //is there an enemy and has this squad already tried attacking it?
+        int attackCount = 0;
+        if (enemy == null || engagedEnemies.contains(enemy)){
             return false;
         }
         if (overrideClose || isClose()){
             for (Unit member : members) {
-                if (member != null) {
+                if (member != null && (member.isIdle() || !member.isUnderAttack() || !member.isAttacking())){
                     member.attack(enemy.getPosition(), false);
+                    attackCount += 1;
                 }
             }
-            return true;
+            if (attackCount > 0) {
+                engagedEnemies.add(enemy);
+                return true;
+            }
+            else{
+                return false;
+            }
         }
         else{
             rallyToLeader();

@@ -10,6 +10,7 @@ import jnibwapi.Position;
 import jnibwapi.Unit;
 import jnibwapi.types.UnitType;
 import jnibwapi.BaseLocation;
+import jnibwapi.util.BWColor;
 
 public class CentralCommand {
 
@@ -28,6 +29,8 @@ public class CentralCommand {
 
     private Position enemyBasePosition;
     private Unit enemyBaseUnit;
+    private int attackThreshold;
+    private boolean allIn;
 
     private int previousCount;
 
@@ -40,19 +43,27 @@ public class CentralCommand {
         scarbList = new ArrayList<Unit>() ;
         enemyBuildingPositionsList = new HashSet<Position>();
         previousCount = 0;
+        allIn = false;
+        attackThreshold = 100;
     }
 
     /**
      * Issue refresh command to all squads
      */
     public boolean refresh(){
-
+    bwapi.drawCircle(bwapi.getPlayer((bwapi.getSelf().getID() + 1) % 2).getStartLocation(), 100, BWColor.White, true, true);
         // need to refresh enemy base list here evry frame
         for (Squad squad : squads){
             squad.refresh();
         }
         rallyIfNeeded();
         patrol(2);
+        if (!allIn &&bwapi.getSelf().getSupplyUsed() > attackThreshold){
+            allIn = true;
+            for (Squad squad : squads){
+                squad.move(bwapi.getPlayer((bwapi.getSelf().getID() + 1) % 2).getStartLocation());
+            }
+        }
         return defend();
     }
 

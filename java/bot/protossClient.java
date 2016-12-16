@@ -18,41 +18,41 @@ import javax.management.loading.ClassLoaderRepository;
 
 /**
  * Example Java AI Client using JNI-BWAPI.
- * 
+ *
  * Executes a 5-pool rush and cheats using perfect information.
- * 
+ *
  * Note: the agent often gets stuck when attempting to build the spawning pool. It works best on
  * maps where the overlord spawns with plenty of free space around it.
  */
 public class protossClient implements BWAPIEventListener {
-	
+
 	/** reference to JNI-BWAPI */
 	private final JNIBWAPI bwapi;
-	
+
 	/** used for mineral splits */
 	private final HashSet<Unit> claimedMinerals = new HashSet<>();
-	
+
 	/** have probe 5 been warped */
 	private boolean warpedProbe;
-	
+
 	/** the drone that has been assigned to building a pool */
 	private Unit poolDrone;
-	
+
 	/** when should the next overlord be spawned? */
 	private int supplyCap;
-	
+
 	//the number of zerglings massed at the base
 	private int garrisonZLots;
-	
+
 	//number of probes
 	private int numProbes;
 	//the number of zealots which have been trained
 	private int numZealots;
 	private int armySize;
-	
+
 	//is this a buildable area of creep
 	private boolean buildHere;
-	
+
 	//the area where the spawning pool is built
 	private Position buildArea;
 	//position of the first pylon
@@ -86,7 +86,7 @@ public class protossClient implements BWAPIEventListener {
 
 	private Unit geyser;
 	private Unit base;
-	
+
 	private List<Integer> buildQuadrants;
 
 	private BuildOrder buildOrder;
@@ -101,6 +101,7 @@ public class protossClient implements BWAPIEventListener {
 	public static final int REQUISITE_BUILDING_DOES_NOT_EXIST = errorCode++;
 	public static final int NO_SUITABLE_BUILD_LOCATION = errorCode++;
 	public static final int NO_BUILDERS_EXIST = errorCode++;
+	private static int defaultSpace = 80;
 
 	private int lastState;
 	private int currentCount;
@@ -749,16 +750,16 @@ public class protossClient implements BWAPIEventListener {
 					return buildGasField(building);
 				}
 				if (myRaceType == RaceType.RaceTypes.Protoss && building != UnitTypes.Protoss_Pylon){
-					buildPos = getBuildPosition(pyPos, 50, building, false);
+					buildPos = getBuildPosition(pyPos, defaultSpace, building, false);
 					if (buildPos == null){
-						buildPos = getBuildPosition(pyPos, 0, building, true);
+						buildPos = getBuildPosition(pyPos, defaultSpace, building, true);
 					}
 				}
 				if (building == UnitTypes.Protoss_Photon_Cannon || building == UnitTypes.Terran_Missile_Turret){
-					buildPos = getBuildPosition(pyPos, 100, building);
+					buildPos = getBuildPosition(pyPos, defaultSpace, building);
 				}
 				else {
-					buildPos = getBuildPosition(basePos, 0, building);
+					buildPos = getBuildPosition(basePos, defaultSpace, building);
 				}
 				if (buildPos == null){
 					return NO_SUITABLE_BUILD_LOCATION;
@@ -962,7 +963,7 @@ public class protossClient implements BWAPIEventListener {
 				if (building.getType().isBuilding() && building.getType() != UnitTypes.Protoss_Nexus && building.getType() != UnitTypes.Protoss_Assimilator){
 					if (building.isUnpowered()){
 						if(!poolDrone.isConstructing()) {
-							build(UnitTypes.Protoss_Pylon, getBuildPosition(building.getPosition(), 0, UnitTypes.Protoss_Pylon, false));
+							build(UnitTypes.Protoss_Pylon, getBuildPosition(building.getPosition(), (defaultSpace / 4) * 3, UnitTypes.Protoss_Pylon, false));
 							return false;
 						}
 					}
