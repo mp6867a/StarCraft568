@@ -453,6 +453,19 @@ public class protossClient implements BWAPIEventListener {
 		}
 		return null;
 	}
+	
+	private List<ChokePoint> getBaseChokePoints(){
+        List<ChokePoint> chokePoints = bwapi.getMap().getChokePoints();
+        List<ChokePoint> baseChokes = new LinkedList<>();
+        for (ChokePoint cp : chokePoints) {
+            if (cp.getFirstRegion() == bwapi.getMap().getRegion(buildArea)) {
+                baseChokes.add(cp);
+            } else if (cp.getSecondRegion() == bwapi.getMap().getRegion(buildArea)) {
+                baseChokes.add(cp);
+            }
+        }
+        return baseChokes;
+    }
 
 	private List<ChokePoint> getBaseChokePoints(){
         List<ChokePoint> chokePoints = bwapi.getMap().getChokePoints();
