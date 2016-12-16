@@ -1,11 +1,12 @@
 # StarCraft568
 Fall 2016 CSC 568
 
-This is a project for our AI class; our goal is to run a starcraft AI capable of executing basic strategies. 
+This is our final team project for our CSC 568 AI Class. The contributors for this project are Rehaf Aljammaz, Ben Cole, Samuel Doud, Samara Fantie, Matthew J. Hendrickson, and Mariah Paredes.
 
 ## Goal
+Was to build an artificial intelligence bot that could execute basic strategies. 
 Defeat the enemy as quickly as possible, while avoiding self-destruction.
-Also known as crushing any bot that challenges our authority. 
+(Also known as crushing any bot that challenges our authority.) 
 
 ## API Reference
 We used the Java interface version to implement our bot, JNIBWAPI (  Java interface for the Brood War API), please refer to https://github.com/JNIBWAPI/JNIBWAPI/wiki
