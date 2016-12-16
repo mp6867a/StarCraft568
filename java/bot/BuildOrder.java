@@ -94,7 +94,7 @@ public class BuildOrder {
 
         myBuildOrderDefaultInterStep = 0;
         myBuildOrderDefaultIntraStep = 0;
-        
+
         myBuildOrderEmergencyInterStep = 0;
         myBuildOrderEmergencyIntraStep = 0;
 
@@ -106,7 +106,7 @@ public class BuildOrder {
 
         myBuildOrderDefault = new ArrayList<UnitType>();
         myBuildOrderDefaultQuantities = new ArrayList<Integer>();
-        
+
         myBuildOrderEmergency = new ArrayList<UnitType>();
         myBuildOrderEmergencyQuantities = new ArrayList<Integer>();
 
@@ -163,9 +163,9 @@ public class BuildOrder {
                     }
                     else{
                         if (toDefault){
-                        myBuildOrderDefault.add(tempUnitType);
-                        myBuildOrderDefaultQuantities.add(tempInt);
-                        System.out.println("Now adding units to default loop.");
+                            myBuildOrderDefault.add(tempUnitType);
+                            myBuildOrderDefaultQuantities.add(tempInt);
+                            System.out.println("Now adding units to default loop.");
                         }
                         if(isEmergency){
                             myBuildOrderEmergency.add(tempUnitType);
@@ -189,8 +189,8 @@ public class BuildOrder {
             isIdle = false;
         }
         catch (NumberFormatException e){
-                System.out.println("Critical error (" + tempLine[1] + " is not a number): build order could not be loaded.");
-            }
+            System.out.println("Critical error (" + tempLine[1] + " is not a number): build order could not be loaded.");
+        }
         catch (FileNotFoundException e) {
             System.out.println("Critical error (" + filepath + " does not exist): build order could not be loaded.");
 
@@ -250,7 +250,7 @@ public class BuildOrder {
                         myBuildOrderDefaultIntraStep = 0;
                         myBuildOrderDefaultInterStep += 1;
                         myBuildOrderDefaultInterStep %= myBuildOrderDefault.size();
-                    } 
+                    }
                     else {
                         myBuildOrderDefaultIntraStep += 1;
                     }
