@@ -40,3 +40,8 @@ We used the Java interface version to implement our bot, JNIBWAPI (  Java interf
 * Note: if you see TestProtoss as a class it is currently not functioning, and obsolete. UnitOrder is another class that is still being modified and not completely in use. It's main goal was to tell the zealots to create units, however that's now central command. 
 
 
+##Extra Points
+* Micromanagement of units was handled through through CentralCommand and Squad classes.
+* Editable build order allows for all unit types to be built.
+* Semi-intelligent builing location selction. Changes if we are building cannons or pylons as compared to other buildings. Also will bias cannons towards chokepoints and buildings towards the enemy base as well as not building in the gas-NExus field.
+
